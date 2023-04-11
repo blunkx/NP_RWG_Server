@@ -103,7 +103,7 @@ void parser(string &input, vector<command> &cmds)
         print_env(tokens[1].c_str());
         break;
     case EXIT:
-        exit(0);
+        exit(EXIT_SUCCESS);
         break;
     }
 }
