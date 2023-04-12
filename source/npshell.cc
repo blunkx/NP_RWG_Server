@@ -3,12 +3,12 @@
 void exe_shell()
 {
     init_env();
-    string input;
-    vector<command> cmds;
+    std::string input;
+    std::vector<command> cmds;
     while (true)
     {
-        cout << "% ";
-        if (!getline(cin, input).eof())
+        std::cout << "% ";
+        if (!std::getline(std::cin, input).eof())
         {
             parser(input, cmds);
         }
