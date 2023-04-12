@@ -6,8 +6,14 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-int main(int argc, char *argv[])
+// int socket(int domain, int type, int protocol);
+// domain => AF_UNIX/AF_LOCAL : local file system   AF_INET : ipv4  AF_INET6 : ipv6
+// type => SOCK_STREAM :    TCP SOCK_DGRAM : UDP
+// protocol => 0 :
 
+// int listen(int sockfd, int backlog); backlog => length if queue
+
+int main(int argc, char *argv[])
 {
     // socket的建立
     char inputBuffer[256] = {};
