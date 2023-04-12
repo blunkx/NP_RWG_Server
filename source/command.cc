@@ -1,5 +1,7 @@
 #include "command.h"
 
+using namespace std;
+
 void exe_bin(vector<command> &cmds)
 {
     bool debug_output = false;

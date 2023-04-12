@@ -1,5 +1,5 @@
 #include "parser.h"
-
+using namespace std;
 BUILT_IN_COM_E is_built_in_command(const vector<string> tokens)
 {
     /*
