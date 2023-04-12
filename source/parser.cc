@@ -82,8 +82,18 @@ void split_by_pipe(vector<string> &tokens, vector<command> &cmds)
     }
 }
 
+void print_str_ascii(const std::string &input)
+{
+    std::cout << "str length:" << input.size() << std::endl;
+    for (int i = 0; i < input.size(); i++)
+    {
+        std::cout << i << " " << int(input[i]) << std::endl;
+    }
+}
+
 void parser(string &input, vector<command> &cmds)
 {
+    input.erase(std::remove(input.begin(), input.end(), '\r'), input.end());
     if (input.empty())
         return;
     vector<string> tokens;
