@@ -1,5 +1,5 @@
-#ifndef PARSER_H_
-#define PARSER_H_
+#ifndef _PARSER_H_
+#define _PARSER_H_
 
 #include <iostream>
 #include <string>
@@ -16,8 +16,6 @@
 
 #include "command.h"
 
-using namespace std;
-
 typedef enum BUILT_IN_COM_T
 {
     NOT_BUILT_IN,
@@ -26,6 +24,6 @@ typedef enum BUILT_IN_COM_T
     EXIT,
 } BUILT_IN_COM_E;
 
-void parser(string &input, vector<command> &number_pipes);
+void parser(std::string &input, std::vector<command> &number_pipes);
 
 #endif
