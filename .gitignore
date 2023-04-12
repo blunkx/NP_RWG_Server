@@ -97,3 +97,6 @@ commands/
 obj/
 demo/
 memo/
+client
+server
+np_simple
