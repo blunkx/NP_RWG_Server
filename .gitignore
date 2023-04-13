@@ -100,3 +100,4 @@ memo/
 client
 server
 np_simple
+np_single_proc
