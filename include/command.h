@@ -16,6 +16,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 typedef enum PIPE_TYPE_T
 {
@@ -39,6 +42,22 @@ public:
     int fd[2];
     std::vector<std::string> cmd;
     std::string which_type();
+};
+
+class user_info
+{
+private:
+public:
+    user_info(sockaddr_in input_info, int input_fd)
+    {
+        sock_addr_info = input_info;
+        fd = input_fd;
+    }
+    sockaddr_in sock_addr_info;
+    int fd = -1;
+    std::string name = "no name";
+    std::vector<command> cmds;
+    bool is_closed = false;
 };
 
 void init_env();
