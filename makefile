@@ -9,8 +9,12 @@ OBJ = $(patsubst %.cc, ${DIR_OBJ}/%.o, $(notdir $(SRC)))
 CC = g++
 CFLAGS = -g -Wall -I$(DIR_INC) -std=c++11
 TARGET = np_simple
+TARGET2= np_single_proc
 
-${TARGET}:$(OBJ)
+${TARGET}:$(filter-out ${DIR_OBJ}/$(TARGET2).o, $(OBJ))
+	$(CC) -o $@ $^
+
+${TARGET2}:$(filter-out ${DIR_OBJ}/$(TARGET).o, $(OBJ))
 	$(CC) -o $@ $^
 
 $(DIR_OBJ)/%.o: ${DIR_SRC}/%.cc ${DIR_INC}/%.h
@@ -19,4 +23,4 @@ $(DIR_OBJ)/%.o: ${DIR_SRC}/%.cc ${DIR_INC}/%.h
 
 .PHONY:clean
 clean:
-	rm -rf ${DIR_OBJ}/*.o -f $(TARGET)
+	rm -rf ${DIR_OBJ}/*.o -f $(TARGET) $(TARGET2)
