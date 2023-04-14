@@ -31,6 +31,15 @@ typedef enum PIPE_TYPE_T
 
 } PIPE_TYPE_E;
 
+typedef enum BROADCAST_TYPE_T
+{
+    LOG_IN,
+    LOG_OUT,
+    USER_PIPE,
+    YELL_BR,
+    CHANGE_NAME
+} BROADCAST_TYPE_E;
+
 class command
 {
 private:
@@ -53,6 +62,7 @@ public:
         sock_addr_info = input_info;
         fd = input_fd;
     }
+    int id_num = -1;
     sockaddr_in sock_addr_info;
     int fd = -1;
     std::string name = "no name";
@@ -62,23 +72,11 @@ public:
 
 void init_env();
 void print_env(const char *const para);
+void print_users(const std::vector<user_info> &user_info_arr, const size_t id);
+void tell_to_other(const std::vector<user_info> &user_info_arr, const size_t sender_id, const size_t recv_id, std::string msg);
+void change_name(std::vector<user_info> &user_info_arr, const size_t id, std::string input_name);
+void broadcast(const std::vector<user_info> &user_info_arr, BROADCAST_TYPE_E br_type, size_t log_out_id, std::string msg);
 
-inline void init_pipe(int *fd);
-inline void reduce_num_pipes(std::vector<command> &number_pipes, int last);
-inline void init_temp_fd(std::vector<int *> &temp_fd_arr, size_t s);
-void collect_num_pipe_output(std::vector<command> &cmds, std::vector<int *> &temp_fd_arr, size_t &temp_id, size_t i);
-inline void close_unused_pipe_in_child(std::vector<command> &cmds, size_t i);
-inline void close_pipe(std::vector<command> &cmds);
-inline void close_temp_pipe(std::vector<int *> &temp_fd_arr);
-inline void reduce_num_by_nl(std::vector<command> &cmds);
-char **vector_to_c_str_arr(std::vector<std::string> cmd);
-
-void exe_command(int stdout_copy, std::vector<command> &cmds, int i, bool stop_pipe, int temp_fd[]);
-void exe_pipe(int stdout_copy, std::vector<command> &cmds, int i, bool stop_pipe, int temp_fd[]);
-void exe_err_pipe(int stdout_copy, std::vector<command> &cmds, int i, bool stop_pipe, int temp_fd[]);
-void exe_f_red(int stdout_copy, std::vector<command> &cmds, int i, int temp_fd[]);
-void exe_num_pipe(int stdout_copy, std::vector<command> &cmds, int i, bool stop_pipe, int temp_fd[]);
-void exe_err_num_pipe(int stdout_copy, std::vector<command> &cmds, int i, bool stop_pipe, int temp_fd[]);
 void exe_bin(std::vector<command> &cmds);
 
 void print_cmds(std::vector<command> cmds);
