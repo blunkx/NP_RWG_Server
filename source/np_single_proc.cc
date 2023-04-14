@@ -6,7 +6,6 @@ inline void init_client(sockaddr_in &client_info);
 inline void print_login_msg();
 inline void print_lost_cnt_msg();
 inline void init_fd_set();
-void broadcast(const std::vector<user_info> &user_info_arr, BROADCAST_TYPE_E br_type, size_t log_out_id);
 
 int main(int argc, char *const argv[])
 {
@@ -55,7 +54,7 @@ int main(int argc, char *const argv[])
             FD_SET(new_con_fd, &all_fds);
             user_info temp(new_con_info, new_con_fd);
             user_info_arr.push_back(temp);
-            broadcast(user_info_arr, LOG_IN, 0);
+            broadcast(user_info_arr, LOG_IN, user_info_arr.size() - 1, "");
             if (next_available_fd - 1 == 0) // only socket fd works, back to select and wait for new connection
                 continue;
         }
@@ -63,7 +62,7 @@ int main(int argc, char *const argv[])
         // poll
         for (size_t i = 0; i < user_info_arr.size(); i++)
         {
-            if (FD_ISSET(user_info_arr[i].fd, &temp_fds))
+            if (!user_info_arr[i].is_closed && FD_ISSET(user_info_arr[i].fd, &temp_fds))
             {
                 char buffer[15001] = {0};
                 ssize_t read_len = read(user_info_arr[i].fd, buffer, sizeof(buffer));
@@ -75,27 +74,34 @@ int main(int argc, char *const argv[])
                 else if (read_len == 0)
                 {
                     user_info_arr[i].is_closed = true;
-                    broadcast(user_info_arr, LOG_OUT, i);
+                    broadcast(user_info_arr, LOG_OUT, i, "");
                     close(user_info_arr[i].fd);
                     FD_CLR(user_info_arr[i].fd, &all_fds);
                     print_lost_cnt_msg();
                 }
                 else
                 {
-
                     int stdout_copy = dup(STDOUT_FILENO);
                     int stderr_copy = dup(STDERR_FILENO);
                     dup2(user_info_arr[i].fd, STDOUT_FILENO);
                     dup2(user_info_arr[i].fd, STDERR_FILENO);
                     std::string input(buffer);
-                    std::cout << input << std::flush;
-                    std::cout << "%" << std::flush;
-                    //  exe_shell();
+                    // std::cout << input << std::flush;
+                    parser(input, user_info_arr, i);
+                    if (!user_info_arr[i].is_closed)
+                        std::cout << "%" << std::flush;
                     dup2(stdout_copy, STDOUT_FILENO);
                     dup2(stderr_copy, STDERR_FILENO);
                     close(stdout_copy);
                     close(stderr_copy);
                     std::cout << std::flush;
+                    if (user_info_arr[i].is_closed)
+                    {
+                        broadcast(user_info_arr, LOG_OUT, i, "");
+                        shutdown(user_info_arr[i].fd, SHUT_RDWR);
+                        FD_CLR(user_info_arr[i].fd, &all_fds);
+                        print_lost_cnt_msg();
+                    }
                 }
             }
         }
@@ -168,46 +174,4 @@ inline void print_login_msg()
 inline void print_lost_cnt_msg()
 {
     std::cout << "|-------------------User lost connection------------------|\n\n";
-}
-
-void broadcast(const std::vector<user_info> &user_info_arr, BROADCAST_TYPE_E br_type, size_t log_out_id)
-{
-
-    for (size_t i = 0; i < user_info_arr.size(); i++)
-    {
-        int stdout_copy = dup(STDOUT_FILENO);
-        dup2(user_info_arr[i].fd, STDOUT_FILENO);
-        switch (br_type)
-        {
-        case LOG_IN:
-            if (i == user_info_arr.size() - 1)
-            {
-                std::cout << "****************************************\n"
-                          << "** Welcome to the information server. **\n"
-                          << "****************************************" << std::flush;
-            }
-            std::cout << "\n*** User \'("
-                      << user_info_arr[i].name
-                      << ")\' entered from "
-                      << inet_ntoa(user_info_arr[i].sock_addr_info.sin_addr)
-                      << ":" << ntohs(user_info_arr[i].sock_addr_info.sin_port)
-                      << ". ***" << std::endl;
-            std::cout << "%" << std::flush;
-            break;
-        case LOG_OUT:
-            if (!user_info_arr[i].is_closed)
-            {
-                std::cout << "\n*** User \'<" << user_info_arr[log_out_id].name << ">\' left. ***" << std::endl;
-                std::cout << "%" << std::flush;
-            }
-            break;
-        case USER_PIPE:
-            break;
-
-        default:
-            break;
-        }
-        dup2(stdout_copy, STDOUT_FILENO);
-        close(stdout_copy);
-    }
 }
