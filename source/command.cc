@@ -1,6 +1,23 @@
 #include "command.h"
 
 using namespace std;
+// funciton only used in command.cc
+inline void init_pipe(int *fd);
+inline void reduce_num_pipes(std::vector<command> &number_pipes, int last);
+inline void init_temp_fd(std::vector<int *> &temp_fd_arr, size_t s);
+void collect_num_pipe_output(std::vector<command> &cmds, std::vector<int *> &temp_fd_arr, size_t &temp_id, size_t i);
+inline void close_unused_pipe_in_child(std::vector<command> &cmds, size_t i);
+inline void close_pipe(std::vector<command> &cmds);
+inline void close_temp_pipe(std::vector<int *> &temp_fd_arr);
+inline void reduce_num_by_nl(std::vector<command> &cmds);
+
+char **vector_to_c_str_arr(std::vector<std::string> cmd);
+void exe_command(int stdout_copy, std::vector<command> &cmds, int i, bool stop_pipe, int temp_fd[]);
+void exe_pipe(int stdout_copy, std::vector<command> &cmds, int i, bool stop_pipe, int temp_fd[]);
+void exe_err_pipe(int stdout_copy, std::vector<command> &cmds, int i, bool stop_pipe, int temp_fd[]);
+void exe_f_red(int stdout_copy, std::vector<command> &cmds, int i, int temp_fd[]);
+void exe_num_pipe(int stdout_copy, std::vector<command> &cmds, int i, bool stop_pipe, int temp_fd[]);
+void exe_err_num_pipe(int stdout_copy, std::vector<command> &cmds, int i, bool stop_pipe, int temp_fd[]);
 
 void exe_bin(vector<command> &cmds)
 {
@@ -111,6 +128,120 @@ void print_env(const char *const para)
     cur_env = getenv(para);
     if (cur_env != NULL)
         cout << cur_env << endl;
+}
+
+void print_users(const vector<user_info> &user_info_arr, const size_t id)
+{
+    //<ID>[Tab]<nickname>[Tab]<IP:port>[Tab]<indicate me>
+    cout << "<ID>\t<nickname>\t<IP:port>\t<indicate me>" << endl;
+    for (size_t i = 0; i < user_info_arr.size(); i++)
+    {
+        cout << i << "\t"
+             << user_info_arr[i].name << "\t"
+             << inet_ntoa(user_info_arr[i].sock_addr_info.sin_addr)
+             << ":" << ntohs(user_info_arr[i].sock_addr_info.sin_port);
+        if (i == id)
+            cout << "\t<-me";
+        cout << endl;
+    }
+}
+
+void tell_to_other(const vector<user_info> &user_info_arr, const size_t sender_id, const size_t recv_id, string msg)
+{
+    for (size_t i = 0; i < user_info_arr.size(); i++)
+    {
+        if (i == recv_id)
+        {
+            int stdout_copy = dup(STDOUT_FILENO);
+            dup2(user_info_arr[i].fd, STDOUT_FILENO);
+            cout << "*** User " << user_info_arr[sender_id].name << " told you ***: " << msg << endl;
+            dup2(stdout_copy, STDOUT_FILENO);
+            close(stdout_copy);
+            return;
+        }
+    }
+    cout << "*** Error: user #" << recv_id << " does not exist yet. ***" << endl;
+}
+
+void change_name(vector<user_info> &user_info_arr, const size_t id, string input_name)
+{
+    for (size_t i = 0; i < user_info_arr.size(); i++)
+    {
+        if (i != id)
+        {
+            if (user_info_arr[i].name == input_name)
+            {
+                cout << "*** User \'" << input_name << "\' already exists. ***" << endl;
+                return;
+            }
+        }
+    }
+    user_info_arr[id].name = input_name;
+    broadcast(user_info_arr, CHANGE_NAME, id, "");
+}
+
+void broadcast(const vector<user_info> &user_info_arr, BROADCAST_TYPE_E br_type, size_t self_id, string msg)
+{
+    for (size_t i = 0; i < user_info_arr.size(); i++)
+    {
+        if (user_info_arr[i].is_closed)
+            continue;
+        int stdout_copy = dup(STDOUT_FILENO);
+        dup2(user_info_arr[i].fd, STDOUT_FILENO);
+        switch (br_type)
+        {
+        case LOG_IN:
+            if (i == self_id)
+            {
+                std::cout << "****************************************\n"
+                          << "** Welcome to the information server. **\n"
+                          << "****************************************" << std::flush;
+            }
+            std::cout << "\n*** User \'("
+                      << user_info_arr[self_id].name
+                      << ")\' entered from "
+                      << inet_ntoa(user_info_arr[self_id].sock_addr_info.sin_addr)
+                      << ":" << ntohs(user_info_arr[self_id].sock_addr_info.sin_port)
+                      << ". ***" << std::endl;
+            std::cout << "%" << std::flush;
+            break;
+        case LOG_OUT:
+            std::cout << "\n*** User \'<" << user_info_arr[self_id].name << ">\' left. ***" << std::endl;
+            std::cout << "%" << std::flush;
+            break;
+        case USER_PIPE:
+
+            break;
+        case YELL_BR:
+            if (i != self_id)
+            {
+                cout << "\n"
+                     << "*** " << user_info_arr[self_id].name
+                     << " yelled ***: "
+                     << msg << "\n%" << flush;
+            }
+            else
+            {
+                cout << "*** " << user_info_arr[self_id].name
+                     << " yelled ***: ";
+                cout << msg << endl;
+            }
+            break;
+        case CHANGE_NAME:
+            std::cout << "\n*** User from "
+                      << inet_ntoa(user_info_arr[self_id].sock_addr_info.sin_addr)
+                      << ":" << ntohs(user_info_arr[self_id].sock_addr_info.sin_port)
+                      << " is named "
+                      << user_info_arr[self_id].name
+                      << ". ***" << std::endl;
+            std::cout << "%" << std::flush;
+            break;
+        default:
+            break;
+        }
+        dup2(stdout_copy, STDOUT_FILENO);
+        close(stdout_copy);
+    }
 }
 
 // functions for execute command
