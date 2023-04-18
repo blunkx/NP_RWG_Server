@@ -6,6 +6,7 @@ inline void init_client(sockaddr_in &client_info);
 inline void print_login_msg();
 inline void print_lost_cnt_msg();
 inline void init_fd_set();
+size_t give_available_id(std::vector<user_info> user_info_arr);
 
 int main(int argc, char *const argv[])
 {
@@ -27,7 +28,6 @@ int main(int argc, char *const argv[])
     init_client(new_con_info);
     FD_SET(socket_fd, &all_fds);
 
-    int status;
     while (true)
     {
         fd_set temp_fds;
@@ -52,7 +52,7 @@ int main(int argc, char *const argv[])
             }
             print_login_msg();
             FD_SET(new_con_fd, &all_fds);
-            user_info temp(new_con_info, new_con_fd);
+            user_info temp(new_con_info, new_con_fd, give_available_id(user_info_arr));
             user_info_arr.push_back(temp);
             broadcast(user_info_arr, LOG_IN, user_info_arr.size() - 1, "");
             if (next_available_fd - 1 == 0) // only socket fd works, back to select and wait for new connection
@@ -105,6 +105,14 @@ int main(int argc, char *const argv[])
                 }
             }
         }
+        // remove all disconnected user from vector
+        user_info_arr.erase(
+            remove_if(
+                user_info_arr.begin(),
+                user_info_arr.end(),
+                [](user_info const &p)
+                { return p.is_closed; }),
+            user_info_arr.end());
     }
     close(socket_fd);
     return 0;
@@ -142,6 +150,7 @@ inline void init_server(const int server_port, int &socket_fd, sockaddr_in &serv
         std::cerr << "fail to create socket\n";
         exit(EXIT_FAILURE);
     }
+    setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, (struct sockaddr *)&server_info, sizeof(server_info));
     bzero(&server_info, sizeof(server_info));  // init server to 0
     server_info.sin_family = PF_INET;          // ipv4
     server_info.sin_addr.s_addr = INADDR_ANY;  // allow all ip to connect
@@ -174,4 +183,27 @@ inline void print_login_msg()
 inline void print_lost_cnt_msg()
 {
     std::cout << "|-------------------User lost connection------------------|\n\n";
+}
+
+size_t give_available_id(std::vector<user_info> user_info_arr)
+{
+    if (user_info_arr.empty())
+    {
+        return 1;
+    }
+    for (size_t i = 1; i <= 30; i++)
+    {
+        bool is_id_existed = false;
+        for (size_t j = 0; j < user_info_arr.size(); j++)
+        {
+            if (i == user_info_arr[j].id_num)
+            {
+                is_id_existed = true;
+                break;
+            }
+        }
+        if (!is_id_existed)
+            return i;
+    }
+    return 0;
 }
