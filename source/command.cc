@@ -130,19 +130,41 @@ void print_env(const char *const para)
         cout << cur_env << endl;
 }
 
-void print_users(const vector<user_info> &user_info_arr, const size_t id)
+void print_users(vector<user_info> user_info_arr, const size_t id)
 {
-    //<ID>[Tab]<nickname>[Tab]<IP:port>[Tab]<indicate me>
-    cout << "<ID>\t<nickname>\t<IP:port>\t<indicate me>" << endl;
-    for (size_t i = 0; i < user_info_arr.size(); i++)
+    bool debug = true;
+    if (debug)
     {
-        cout << i << "\t"
-             << user_info_arr[i].name << "\t"
-             << inet_ntoa(user_info_arr[i].sock_addr_info.sin_addr)
-             << ":" << ntohs(user_info_arr[i].sock_addr_info.sin_port);
-        if (i == id)
-            cout << "\t<-me";
-        cout << endl;
+        cout << "<ID>\t<nickname>\t<IP:port>\t<indicate me>" << endl;
+        for (size_t i = 0; i < user_info_arr.size(); i++)
+        {
+            cout << user_info_arr[i].id_num << "\t"
+                 << user_info_arr[i].name << "\t"
+                 << inet_ntoa(user_info_arr[i].sock_addr_info.sin_addr)
+                 << ":" << ntohs(user_info_arr[i].sock_addr_info.sin_port);
+            if (i == id)
+                cout << "\t<-me";
+            cout << endl;
+        }
+    }
+    else
+    {
+        int my_id = user_info_arr[id].id_num;
+        sort(user_info_arr.begin(), user_info_arr.end(),
+             [](user_info const &a, user_info const &b) -> bool
+             { return a.id_num < b.id_num; });
+        //<ID>[Tab]<nickname>[Tab]<IP:port>[Tab]<indicate me>
+        cout << "<ID>\t<nickname>\t<IP:port>\t<indicate me>" << endl;
+        for (size_t i = 0; i < user_info_arr.size(); i++)
+        {
+            cout << user_info_arr[i].id_num << "\t"
+                 << user_info_arr[i].name << "\t"
+                 << inet_ntoa(user_info_arr[i].sock_addr_info.sin_addr)
+                 << ":" << ntohs(user_info_arr[i].sock_addr_info.sin_port);
+            if (user_info_arr[i].id_num == my_id)
+                cout << "\t<-me";
+            cout << endl;
+        }
     }
 }
 
@@ -150,7 +172,8 @@ void tell_to_other(const vector<user_info> &user_info_arr, const size_t sender_i
 {
     for (size_t i = 0; i < user_info_arr.size(); i++)
     {
-        if (i == recv_id)
+        // recv_id => id_num
+        if (user_info_arr[i].id_num == recv_id)
         {
             int stdout_copy = dup(STDOUT_FILENO);
             dup2(user_info_arr[i].fd, STDOUT_FILENO);
@@ -209,7 +232,7 @@ void broadcast(const vector<user_info> &user_info_arr, BROADCAST_TYPE_E br_type,
             std::cout << "\n*** User \'<" << user_info_arr[self_id].name << ">\' left. ***" << std::endl;
             std::cout << "%" << std::flush;
             break;
-        case USER_PIPE:
+        case USER_PIPE_BR:
 
             break;
         case YELL_BR:
@@ -228,13 +251,25 @@ void broadcast(const vector<user_info> &user_info_arr, BROADCAST_TYPE_E br_type,
             }
             break;
         case CHANGE_NAME:
-            std::cout << "\n*** User from "
-                      << inet_ntoa(user_info_arr[self_id].sock_addr_info.sin_addr)
-                      << ":" << ntohs(user_info_arr[self_id].sock_addr_info.sin_port)
-                      << " is named "
-                      << user_info_arr[self_id].name
-                      << ". ***" << std::endl;
-            std::cout << "%" << std::flush;
+            if (i != self_id)
+            {
+                cout << "\n*** User from "
+                     << inet_ntoa(user_info_arr[self_id].sock_addr_info.sin_addr)
+                     << ":" << ntohs(user_info_arr[self_id].sock_addr_info.sin_port)
+                     << " is named "
+                     << user_info_arr[self_id].name
+                     << ". ***" << endl;
+                cout << "%" << flush;
+            }
+            else
+            {
+                cout << "*** User from "
+                     << inet_ntoa(user_info_arr[self_id].sock_addr_info.sin_addr)
+                     << ":" << ntohs(user_info_arr[self_id].sock_addr_info.sin_port)
+                     << " is named "
+                     << user_info_arr[self_id].name
+                     << ". ***" << endl;
+            }
             break;
         default:
             break;
