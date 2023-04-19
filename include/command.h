@@ -29,14 +29,16 @@ typedef enum PIPE_TYPE_T
     F_RED_PIPE,
     NUM_PIPE,
     ERR_NUM_PIPE,
-    USER_PIPE
+    WRITE_USER_PIPE,
+    READ_USER_PIPE
 } PIPE_TYPE_E;
 
 typedef enum BROADCAST_TYPE_T
 {
     LOG_IN,
     LOG_OUT,
-    USER_PIPE_BR,
+    WR_USER_PIPE_BR,
+    RD_USER_PIPE_BR,
     YELL_BR,
     CHANGE_NAME
 } BROADCAST_TYPE_E;
@@ -81,6 +83,7 @@ void change_name(std::vector<user_info> &user_info_arr, const size_t id, std::st
 void broadcast(const std::vector<user_info> &user_info_arr, BROADCAST_TYPE_E br_type, size_t log_out_id, std::string msg);
 
 void exe_bin(std::vector<command> &cmds);
+void exe_bin(std::vector<user_info> &user_info_arr, size_t id);
 
 void print_cmds(std::vector<command> cmds);
 
