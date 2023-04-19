@@ -3,24 +3,165 @@
 using namespace std;
 // funciton only used in command.cc
 inline void init_pipe(int *fd);
-inline void reduce_num_pipes(std::vector<command> &number_pipes, int last);
-inline void init_temp_fd(std::vector<int *> &temp_fd_arr, size_t s);
-void collect_num_pipe_output(std::vector<command> &cmds, std::vector<int *> &temp_fd_arr, size_t &temp_id, size_t i);
-inline void close_unused_pipe_in_child(std::vector<command> &cmds, size_t i);
-inline void close_pipe(std::vector<command> &cmds);
-inline void close_temp_pipe(std::vector<int *> &temp_fd_arr);
-inline void reduce_num_by_nl(std::vector<command> &cmds);
+inline void reduce_num_pipes(vector<command> &number_pipes, int last);
+inline void init_temp_fd(vector<int *> &temp_fd_arr, size_t s);
+void collect_num_pipe_output(vector<command> &cmds, vector<int *> &temp_fd_arr, size_t &temp_id, size_t i);
+inline void close_unused_pipe_in_child(vector<command> &cmds, size_t i);
+inline void close_pipe(vector<command> &cmds);
+inline void close_temp_pipe(vector<int *> &temp_fd_arr);
+inline void close_wr_user_pipe(vector<user_info> &user_info_arr, int id, int i);
+inline void close_rd_user_pipe(vector<user_info> &user_info_arr, int id, int i);
+inline void reduce_num_by_nl(vector<command> &cmds);
+inline int init_wr_user_pp(vector<user_info> &user_info_arr, int id, int cmd_i);
+inline int init_rd_user_pp(vector<user_info> &user_info_arr, int id, int cmd_i);
 
-char **vector_to_c_str_arr(std::vector<std::string> cmd);
-void exe_command(int stdout_copy, std::vector<command> &cmds, int i, bool stop_pipe, int temp_fd[]);
-void exe_pipe(int stdout_copy, std::vector<command> &cmds, int i, bool stop_pipe, int temp_fd[]);
-void exe_err_pipe(int stdout_copy, std::vector<command> &cmds, int i, bool stop_pipe, int temp_fd[]);
-void exe_f_red(int stdout_copy, std::vector<command> &cmds, int i, int temp_fd[]);
-void exe_num_pipe(int stdout_copy, std::vector<command> &cmds, int i, bool stop_pipe, int temp_fd[]);
-void exe_err_num_pipe(int stdout_copy, std::vector<command> &cmds, int i, bool stop_pipe, int temp_fd[]);
+char **vector_to_c_str_arr(vector<string> cmd);
+void exe_command(int stdout_copy, vector<command> &cmds, int i, bool stop_pipe, int temp_fd[]);
+void exe_pipe(int stdout_copy, vector<command> &cmds, int i, bool stop_pipe, int temp_fd[]);
+void exe_err_pipe(int stdout_copy, vector<command> &cmds, int i, bool stop_pipe, int temp_fd[]);
+void exe_f_red(int stdout_copy, vector<command> &cmds, int i, int temp_fd[]);
+void exe_num_pipe(int stdout_copy, vector<command> &cmds, int i, bool stop_pipe, int temp_fd[]);
+void exe_err_num_pipe(int stdout_copy, vector<command> &cmds, int i, bool stop_pipe, int temp_fd[]);
+void exe_wr_user_pipe(vector<user_info> &user_info_arr, int id, int i, bool stop_pipe, int temp_fd[]);
+void exe_rd_user_pipe(int stdout_copy, vector<user_info> &user_info_arr, int id, int cmds_i, bool stop_pipe, int temp_fd[]);
 
+/*
+ * User pipe version
+ */
+void exe_bin(vector<user_info> &user_info_arr, size_t id)
+{
+    init_env();
+    user_info *current_user = &(user_info_arr[id]);
+    int status;
+    int stdout_copy = dup(STDOUT_FILENO);
+    vector<int *> temp_fd_arr;
+    init_temp_fd(temp_fd_arr, 5); /*only support 5 number pipe in a line*/
+    bool stop_pipe = true;
+    pid_t last_pid = -1;
+    size_t temp_id = 0;
+    for (size_t i = 0; i < current_user->cmds.size(); i++)
+    {
+        if (!current_user->cmds[i].is_exe)
+        {
+            init_pipe(current_user->cmds[i].fd);
+            collect_num_pipe_output(current_user->cmds, temp_fd_arr, temp_id, i);
+            switch (current_user->cmds[i].pipe_type)
+            {
+            case NUM_PIPE:
+            case ERR_NUM_PIPE:
+                reduce_num_pipes(current_user->cmds, i);
+                break;
+            case WRITE_USER_PIPE:
+                if (init_wr_user_pp(user_info_arr, id, i) == -1)
+                {
+                    current_user->cmds[i].is_exe = true;
+                    current_user->cmds[i].is_piped = true;
+                    continue;
+                }
+                break;
+            case READ_USER_PIPE:
+                if (init_rd_user_pp(user_info_arr, id, i) == -1)
+                {
+                    current_user->cmds[i].is_exe = true;
+                    current_user->cmds[i].is_piped = true;
+                    continue;
+                }
+                break;
+            default:
+                break;
+            }
+
+            pid_t pid;
+            pid = fork();
+            if (pid == -1)
+            {
+                cerr << "fork error!\n";
+                exit(EXIT_FAILURE);
+            }
+            else if (pid == 0)
+            {
+                //  child process
+                close_unused_pipe_in_child(current_user->cmds, i);
+                switch (current_user->cmds[i].pipe_type)
+                {
+                case NO_PIPE:
+                    exe_command(stdout_copy, current_user->cmds, i, stop_pipe, temp_fd_arr[temp_id]);
+                    break;
+                case PIPE:
+                    exe_pipe(stdout_copy, current_user->cmds, i, stop_pipe, temp_fd_arr[temp_id]);
+                    break;
+                case ERR_PIPE:
+                    exe_err_pipe(stdout_copy, current_user->cmds, i, stop_pipe, temp_fd_arr[temp_id]);
+                    break;
+                case F_RED_PIPE:
+                    exe_f_red(stdout_copy, current_user->cmds, i, temp_fd_arr[temp_id]);
+                    break;
+                case NUM_PIPE:
+                    exe_num_pipe(stdout_copy, current_user->cmds, i, stop_pipe, temp_fd_arr[temp_id]);
+                    break;
+                case ERR_NUM_PIPE:
+                    exe_err_num_pipe(stdout_copy, current_user->cmds, i, stop_pipe, temp_fd_arr[temp_id]);
+                    break;
+                case WRITE_USER_PIPE:
+                    exe_wr_user_pipe(user_info_arr, id, i, stop_pipe, temp_fd_arr[temp_id]);
+                    break;
+                case READ_USER_PIPE:
+                    exe_rd_user_pipe(stdout_copy, user_info_arr, id, i, stop_pipe, temp_fd_arr[temp_id]);
+                    break;
+                default:
+                    exit(EXIT_FAILURE);
+                    break;
+                }
+            }
+            else
+            {
+                // parent process
+                if (current_user->cmds[i].pipe_type == NO_PIPE || current_user->cmds[i].pipe_type == F_RED_PIPE || current_user->cmds[i].pipe_type == READ_USER_PIPE)
+                    last_pid = pid;
+                if (current_user->cmds[i].pipe_type == NUM_PIPE || current_user->cmds[i].pipe_type == ERR_NUM_PIPE)
+                {
+                    stop_pipe = true;
+                }
+                else
+                {
+                    stop_pipe = false;
+                    current_user->cmds[i].is_piped = true;
+                }
+                current_user->cmds[i].is_exe = true;
+                if (temp_id != 0)
+                {
+                    close(temp_fd_arr[temp_id][0]);
+                    close(temp_fd_arr[temp_id][1]);
+                }
+                if (current_user->cmds[i].pipe_type == WRITE_USER_PIPE)
+                    close_wr_user_pipe(user_info_arr, id, i);
+                if (current_user->cmds[i].pipe_type == READ_USER_PIPE)
+                    close_rd_user_pipe(user_info_arr, id, i);
+            }
+        }
+    }
+    close_pipe(current_user->cmds);
+    close_temp_pipe(temp_fd_arr);
+    if (last_pid != -1)
+        waitpid(last_pid, &status, 0);
+
+    reduce_num_by_nl(current_user->cmds);
+    current_user->cmds.erase(
+        remove_if(
+            current_user->cmds.begin(),
+            current_user->cmds.end(),
+            [](command const &p)
+            { return p.is_piped; }),
+        current_user->cmds.end());
+    return;
+}
+
+/*
+ * numbered pipe version
+ */
 void exe_bin(vector<command> &cmds)
 {
+    init_env();
     bool debug_output = false;
     int status;
     // int stdin_copy = dup(STDIN_FILENO);
@@ -216,24 +357,31 @@ void broadcast(const vector<user_info> &user_info_arr, BROADCAST_TYPE_E br_type,
         case LOG_IN:
             if (i == self_id)
             {
-                std::cout << "****************************************\n"
-                          << "** Welcome to the information server. **\n"
-                          << "****************************************" << std::flush;
+                cout << "****************************************\n"
+                     << "** Welcome to the information server. **\n"
+                     << "****************************************" << flush;
             }
-            std::cout << "\n*** User \'("
-                      << user_info_arr[self_id].name
-                      << ")\' entered from "
-                      << inet_ntoa(user_info_arr[self_id].sock_addr_info.sin_addr)
-                      << ":" << ntohs(user_info_arr[self_id].sock_addr_info.sin_port)
-                      << ". ***" << std::endl;
-            std::cout << "%" << std::flush;
+            cout << "\n*** User \'("
+                 << user_info_arr[self_id].name << ")\' entered from "
+                 << inet_ntoa(user_info_arr[self_id].sock_addr_info.sin_addr) << ":"
+                 << ntohs(user_info_arr[self_id].sock_addr_info.sin_port) << ". ***" << endl;
+            cout << "%" << flush;
             break;
         case LOG_OUT:
-            std::cout << "\n*** User \'<" << user_info_arr[self_id].name << ">\' left. ***" << std::endl;
-            std::cout << "%" << std::flush;
+            cout << "\n*** User \'<" << user_info_arr[self_id].name << ">\' left. ***" << endl;
+            cout << "%" << flush;
             break;
-        case USER_PIPE_BR:
-
+        case WR_USER_PIPE_BR:
+            // unfinished
+            //  cout << "*** "
+            //       << user_info_arr[self_id].name << " (#"
+            //       << user_info_arr[self_id].id_num << ") just piped \'"
+            //       << msg << endl;
+            break;
+        case RD_USER_PIPE_BR:
+            // unfinished
+            // cout << "*** <receiver_name> (#<receiver_id>) just received from <sender_name> (#<sender_id>) by \'<command>\' ***\n"
+            //      << flush;
             break;
         case YELL_BR:
             if (i != self_id)
@@ -405,6 +553,30 @@ inline void close_temp_pipe(vector<int *> &temp_fd_arr)
     }
 }
 
+inline void close_wr_user_pipe(vector<user_info> &user_info_arr, int id, int i)
+{
+    user_info *current_user = &(user_info_arr[id]);
+    int recv_id = current_user->cmds[i].pipe_num;
+    close(current_user->user_pipe[recv_id][1]);
+}
+
+inline void close_rd_user_pipe(vector<user_info> &user_info_arr, int id, int i)
+{
+    user_info *current_user = &(user_info_arr[id]);
+    user_info *source_user = NULL;
+    int current_id = current_user->id_num;
+    int source_id = current_user->cmds[i].pipe_num;
+    for (vector<user_info>::iterator it = user_info_arr.begin(); it != user_info_arr.end(); it++)
+    {
+        if (source_id == (*it).id_num)
+        {
+            source_user = &(*it);
+            break;
+        }
+    }
+    close(source_user->user_pipe[current_id][0]);
+}
+
 inline void reduce_num_by_nl(vector<command> &cmds)
 {
     switch (cmds.back().pipe_type)
@@ -424,6 +596,76 @@ inline void reduce_num_by_nl(vector<command> &cmds)
         break;
     default:
         break;
+    }
+}
+
+inline int init_wr_user_pp(vector<user_info> &user_info_arr, int id, int cmd_i)
+{
+    user_info *current_user = &(user_info_arr[id]);
+    int recv_id = current_user->cmds[cmd_i].pipe_num;
+    bool is_user_existed = false;
+    for (vector<user_info>::iterator it = user_info_arr.begin(); it != user_info_arr.end(); it++)
+    {
+        if (recv_id == (*it).id_num)
+        {
+            is_user_existed = true;
+            break;
+        }
+    }
+    if (!is_user_existed)
+    {
+        cout << "*** Error: user #<" << recv_id << "> does not exist yet. ***" << endl;
+        return -1;
+    }
+    if (current_user->user_pipe.find(recv_id) == current_user->user_pipe.end())
+    {
+        // not found
+        int *temp_fd = new int[2];
+        init_pipe(temp_fd);
+        current_user->user_pipe.insert(pair<size_t, int *>(recv_id, temp_fd));
+        broadcast(user_info_arr, WR_USER_PIPE_BR, id, "");
+        return 1;
+    }
+    else
+    {
+        // found
+        cout << "***Error : the pipe #" << current_user->id_num << "->#" << recv_id << " already exists.***" << endl;
+        return -1;
+    }
+}
+
+inline int init_rd_user_pp(vector<user_info> &user_info_arr, int id, int cmd_i)
+{
+    user_info *current_user = &(user_info_arr[id]);
+    user_info *source_user;
+    int current_id = current_user->id_num;
+    int source_id = current_user->cmds[cmd_i].pipe_num;
+    bool is_user_existed = false;
+    for (vector<user_info>::iterator it = user_info_arr.begin(); it != user_info_arr.end(); it++)
+    {
+        if (source_id == (*it).id_num)
+        {
+            is_user_existed = true;
+            source_user = &(*it);
+            break;
+        }
+    }
+    if (!is_user_existed)
+    {
+        cout << "*** Error: user #<" << source_id << "> does not exist yet. ***" << endl;
+        return -1;
+    }
+    if (source_user->user_pipe.find(current_id) == source_user->user_pipe.end())
+    {
+        // not found
+        cout << "*** Error : the pipe #" << source_id << "->#" << current_user->id_num << " does not exist yet. ***" << endl;
+        return -1;
+    }
+    else
+    {
+        // found
+        broadcast(user_info_arr, RD_USER_PIPE_BR, id, "");
+        return 1;
     }
 }
 
@@ -609,9 +851,63 @@ void exe_err_num_pipe(int stdout_copy, vector<command> &cmds, int i, bool stop_p
     }
 }
 
+void exe_wr_user_pipe(vector<user_info> &user_info_arr, int id, int i, bool stop_pipe, int temp_fd[])
+{
+    user_info *current_user = &(user_info_arr[id]);
+    int recv_id = current_user->cmds[i].pipe_num;
+    dup2(current_user->cmds[i - 1].fd[0], STDIN_FILENO);
+    close(current_user->cmds[i - 1].fd[0]);
+    close(temp_fd[0]);
+    close(temp_fd[1]);
+    if (i == 0)
+    {
+        close(current_user->cmds[0].fd[0]);
+    }
+    dup2(current_user->user_pipe[recv_id][1], STDOUT_FILENO); // stdout refer to p2[1]
+    close(current_user->user_pipe[recv_id][1]);
+    char **args = vector_to_c_str_arr(current_user->cmds[i].cmd);
+    if (execvp(args[0], args) == -1)
+    {
+        // perror("Error: ");
+        cerr << "Unknown command: [" << args[0] << "].\n";
+        exit(EXIT_FAILURE);
+    }
+}
+
+void exe_rd_user_pipe(int stdout_copy, vector<user_info> &user_info_arr, int id, int i, bool stop_pipe, int temp_fd[])
+{
+    user_info *current_user = &(user_info_arr[id]);
+    user_info *source_user = NULL;
+    int current_id = current_user->id_num;
+    int source_id = current_user->cmds[i].pipe_num;
+    for (vector<user_info>::iterator it = user_info_arr.begin(); it != user_info_arr.end(); it++)
+    {
+        if (source_id == (*it).id_num)
+        {
+            source_user = &(*it);
+            break;
+        }
+    }
+    dup2(source_user->user_pipe[current_id][0], STDIN_FILENO);
+    close(source_user->user_pipe[current_id][0]);
+    close(temp_fd[0]);
+    close(temp_fd[1]);
+    close(current_user->cmds[i].fd[0]);
+    close(current_user->cmds[i].fd[1]);
+    dup2(stdout_copy, STDOUT_FILENO);
+    char **args = vector_to_c_str_arr(current_user->cmds[i].cmd);
+    if (execvp(args[0], args) == -1)
+    {
+        // perror("Error: ");
+        cerr << "Unknown command: [" << args[0] << "].\n";
+        exit(EXIT_FAILURE);
+    }
+}
+
 // debug
 void print_cmds(vector<command> cmds)
 {
+    cout << cmds.size() << endl;
     for (size_t i = 0; i < cmds.size(); i++)
     {
         for (size_t j = 0; j < cmds[i].cmd.size(); j++)
@@ -619,8 +915,17 @@ void print_cmds(vector<command> cmds)
             cout << "{" << cmds[i].cmd[j] << "} ";
         }
         cout << cmds[i].which_type();
-        if (cmds[i].pipe_type == NUM_PIPE || cmds[i].pipe_type == ERR_NUM_PIPE)
+        switch (cmds[i].pipe_type)
+        {
+        case NUM_PIPE:
+        case ERR_NUM_PIPE:
+        case WRITE_USER_PIPE:
+        case READ_USER_PIPE:
             cout << " " << cmds[i].pipe_num;
+            break;
+        default:
+            break;
+        }
         if (cmds[i].is_exe)
             cout << " exed";
         if (cmds[i].is_piped)
@@ -646,6 +951,10 @@ string command::which_type()
         return "NUM_PIPE";
     case ERR_NUM_PIPE:
         return "ERR_NUM_PIPE";
+    case WRITE_USER_PIPE:
+        return "WRITE_USER_PIPE";
+    case READ_USER_PIPE:
+        return "READ_USER_PIPE";
     default:
         return "error";
     }
