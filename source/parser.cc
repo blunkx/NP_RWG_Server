@@ -86,6 +86,24 @@ void split_by_pipe(vector<string> &tokens, vector<command> &cmds)
             cmds.push_back(temp);
             pre_end = it + 1;
         }
+        else if (std::regex_match((*it), std::regex("\\>\\d+")))
+        {
+            temp.pipe_type = WRITE_USER_PIPE;
+            vector<string> temp_cmd(pre_end, it);
+            temp.cmd = temp_cmd;
+            temp.pipe_num = stoi((*it).erase(0, 1));
+            cmds.push_back(temp);
+            pre_end = it + 1;
+        }
+        else if (std::regex_match((*it), std::regex("\\<\\d+")))
+        {
+            temp.pipe_type = READ_USER_PIPE;
+            vector<string> temp_cmd(pre_end, it);
+            temp.cmd = temp_cmd;
+            temp.pipe_num = stoi((*it).erase(0, 1));
+            cmds.push_back(temp);
+            pre_end = it + 1;
+        }
         else if (it == tokens.end() - 1)
         {
             temp.pipe_type = NO_PIPE;
@@ -169,7 +187,7 @@ void parser(string &input, vector<user_info> &user_info_arr, size_t id)
     {
     case NOT_BUILT_IN:
         split_by_pipe(tokens, user_info_arr[id].cmds);
-        exe_bin(user_info_arr[id].cmds);
+        exe_bin(user_info_arr, id);
         break;
     case SETENV:
         setenv(tokens[1].c_str(), tokens[2].c_str(), true);
