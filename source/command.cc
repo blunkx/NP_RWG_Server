@@ -575,6 +575,7 @@ inline void close_rd_user_pipe(vector<user_info> &user_info_arr, int id, int i)
         }
     }
     close(source_user->user_pipe[current_id][0]);
+    source_user->user_pipe.erase(current_id);
 }
 
 inline void reduce_num_by_nl(vector<command> &cmds)
