@@ -2,7 +2,6 @@
 
 void exe_shell()
 {
-    init_env();
     std::string input;
     std::vector<command> cmds;
     while (true)
