@@ -18,8 +18,8 @@ int main(int argc, char *const argv[])
 
     init_server(server_port, socket_fd, server_info);
     init_client(client_info);
-
     int status;
+    init_env();
     while (true)
     {
         client_fd = accept(socket_fd, (struct sockaddr *)&client_info, &client_sock_len);
