@@ -112,6 +112,14 @@ void split_by_pipe(vector<string> &tokens, vector<command> &cmds)
             cmds.push_back(temp);
         }
     }
+    // for (size_t i = 0; i < cmds.size(); i++)
+    // {
+    //     if (cmds[i].cmd.empty())
+    //     {
+    //         vector<string> c{"cat"};
+    //         cmds[i].cmd = c;
+    //     }
+    // }
 }
 
 void print_str_ascii(const std::string &input)
@@ -183,6 +191,7 @@ void parser(string &input, vector<user_info> &user_info_arr, size_t id)
     vector<string> tokens;
     istringstream iss(input);
     copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter(tokens));
+    user_info_arr[id].recv_input = input;
     switch (is_built_in_command(tokens))
     {
     case NOT_BUILT_IN:
@@ -190,7 +199,7 @@ void parser(string &input, vector<user_info> &user_info_arr, size_t id)
         exe_bin(user_info_arr, id);
         break;
     case SETENV:
-        setenv(tokens[1].c_str(), tokens[2].c_str(), true);
+        user_info_arr[id].env_var[tokens[1]] = tokens[2];
         break;
     case PRINTENV:
         print_env(tokens[1].c_str());
