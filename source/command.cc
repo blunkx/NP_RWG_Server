@@ -30,8 +30,8 @@ void exe_rd_user_pipe(int stdout_copy, vector<user_info> &user_info_arr, int id,
  */
 void exe_bin(vector<user_info> &user_info_arr, size_t id)
 {
-    init_env();
     user_info *current_user = &(user_info_arr[id]);
+    // print_cmds(current_user->cmds);
     int status;
     int stdout_copy = dup(STDOUT_FILENO);
     vector<int *> temp_fd_arr;
@@ -161,7 +161,6 @@ void exe_bin(vector<user_info> &user_info_arr, size_t id)
  */
 void exe_bin(vector<command> &cmds)
 {
-    init_env();
     bool debug_output = false;
     int status;
     // int stdin_copy = dup(STDIN_FILENO);
@@ -273,7 +272,7 @@ void print_env(const char *const para)
 
 void print_users(vector<user_info> user_info_arr, const size_t id)
 {
-    bool debug = true;
+    bool debug = false;
     if (debug)
     {
         cout << "<ID>\t<nickname>\t<IP:port>\t<indicate me>" << endl;
@@ -290,7 +289,7 @@ void print_users(vector<user_info> user_info_arr, const size_t id)
     }
     else
     {
-        int my_id = user_info_arr[id].id_num;
+        size_t my_id = user_info_arr[id].id_num;
         sort(user_info_arr.begin(), user_info_arr.end(),
              [](user_info const &a, user_info const &b) -> bool
              { return a.id_num < b.id_num; });
@@ -359,29 +358,34 @@ void broadcast(const vector<user_info> &user_info_arr, BROADCAST_TYPE_E br_type,
             {
                 cout << "****************************************\n"
                      << "** Welcome to the information server. **\n"
-                     << "****************************************" << flush;
+                     << "****************************************" << endl;
             }
-            cout << "\n*** User \'("
-                 << user_info_arr[self_id].name << ")\' entered from "
+            cout << "*** User \'"
+                 << user_info_arr[self_id].name << "\' entered from "
                  << inet_ntoa(user_info_arr[self_id].sock_addr_info.sin_addr) << ":"
                  << ntohs(user_info_arr[self_id].sock_addr_info.sin_port) << ". ***" << endl;
-            cout << "%" << flush;
+            if (i == self_id)
+                cout << "% " << flush;
             break;
         case LOG_OUT:
             cout << "\n*** User \'<" << user_info_arr[self_id].name << ">\' left. ***" << endl;
-            cout << "%" << flush;
+            cout << "% " << flush;
             break;
         case WR_USER_PIPE_BR:
-            // unfinished
-            //  cout << "*** "
-            //       << user_info_arr[self_id].name << " (#"
-            //       << user_info_arr[self_id].id_num << ") just piped \'"
-            //       << msg << endl;
+            cout << "*** "
+                 << user_info_arr[self_id].name << " (#"
+                 << user_info_arr[self_id].id_num << ") just piped \'"
+                 << user_info_arr[self_id].recv_input << "\' to "
+                 << msg
+                 << endl;
             break;
         case RD_USER_PIPE_BR:
-            // unfinished
-            // cout << "*** <receiver_name> (#<receiver_id>) just received from <sender_name> (#<sender_id>) by \'<command>\' ***\n"
-            //      << flush;
+            cout << "*** "
+                 << user_info_arr[self_id].name
+                 << " (#"
+                 << user_info_arr[self_id].id_num << ") just received from "
+                 << msg << " by \'"
+                 << user_info_arr[self_id].recv_input << "\' ***" << endl;
             break;
         case YELL_BR:
             if (i != self_id)
@@ -389,7 +393,7 @@ void broadcast(const vector<user_info> &user_info_arr, BROADCAST_TYPE_E br_type,
                 cout << "\n"
                      << "*** " << user_info_arr[self_id].name
                      << " yelled ***: "
-                     << msg << "\n%" << flush;
+                     << msg << "\n% " << flush;
             }
             else
             {
@@ -404,19 +408,19 @@ void broadcast(const vector<user_info> &user_info_arr, BROADCAST_TYPE_E br_type,
                 cout << "\n*** User from "
                      << inet_ntoa(user_info_arr[self_id].sock_addr_info.sin_addr)
                      << ":" << ntohs(user_info_arr[self_id].sock_addr_info.sin_port)
-                     << " is named "
+                     << " is named \'"
                      << user_info_arr[self_id].name
-                     << ". ***" << endl;
-                cout << "%" << flush;
+                     << "\'. ***" << endl;
+                cout << "% " << flush;
             }
             else
             {
                 cout << "*** User from "
                      << inet_ntoa(user_info_arr[self_id].sock_addr_info.sin_addr)
                      << ":" << ntohs(user_info_arr[self_id].sock_addr_info.sin_port)
-                     << " is named "
+                     << " is named \'"
                      << user_info_arr[self_id].name
-                     << ". ***" << endl;
+                     << "\'. ***" << endl;
             }
             break;
         default:
@@ -564,8 +568,8 @@ inline void close_rd_user_pipe(vector<user_info> &user_info_arr, int id, int i)
 {
     user_info *current_user = &(user_info_arr[id]);
     user_info *source_user = NULL;
-    int current_id = current_user->id_num;
-    int source_id = current_user->cmds[i].pipe_num;
+    size_t current_id = current_user->id_num;
+    size_t source_id = current_user->cmds[i].pipe_num;
     for (vector<user_info>::iterator it = user_info_arr.begin(); it != user_info_arr.end(); it++)
     {
         if (source_id == (*it).id_num)
@@ -603,12 +607,16 @@ inline void reduce_num_by_nl(vector<command> &cmds)
 inline int init_wr_user_pp(vector<user_info> &user_info_arr, int id, int cmd_i)
 {
     user_info *current_user = &(user_info_arr[id]);
-    int recv_id = current_user->cmds[cmd_i].pipe_num;
+    size_t recv_id = current_user->cmds[cmd_i].pipe_num;
     bool is_user_existed = false;
+    stringstream ss;
+    string recv_info;
     for (vector<user_info>::iterator it = user_info_arr.begin(); it != user_info_arr.end(); it++)
     {
         if (recv_id == (*it).id_num)
         {
+            ss << it->name << " (#" << it->id_num << ") ***";
+            getline(ss, recv_info);
             is_user_existed = true;
             break;
         }
@@ -624,7 +632,7 @@ inline int init_wr_user_pp(vector<user_info> &user_info_arr, int id, int cmd_i)
         int *temp_fd = new int[2];
         init_pipe(temp_fd);
         current_user->user_pipe.insert(pair<size_t, int *>(recv_id, temp_fd));
-        broadcast(user_info_arr, WR_USER_PIPE_BR, id, "");
+        broadcast(user_info_arr, WR_USER_PIPE_BR, id, recv_info);
         return 1;
     }
     else
@@ -639,13 +647,17 @@ inline int init_rd_user_pp(vector<user_info> &user_info_arr, int id, int cmd_i)
 {
     user_info *current_user = &(user_info_arr[id]);
     user_info *source_user;
-    int current_id = current_user->id_num;
-    int source_id = current_user->cmds[cmd_i].pipe_num;
+    size_t current_id = current_user->id_num;
+    size_t source_id = current_user->cmds[cmd_i].pipe_num;
     bool is_user_existed = false;
+    stringstream ss;
+    string source_info;
     for (vector<user_info>::iterator it = user_info_arr.begin(); it != user_info_arr.end(); it++)
     {
         if (source_id == (*it).id_num)
         {
+            ss << it->name << " (#" << it->id_num << ")";
+            getline(ss, source_info);
             is_user_existed = true;
             source_user = &(*it);
             break;
@@ -665,7 +677,7 @@ inline int init_rd_user_pp(vector<user_info> &user_info_arr, int id, int cmd_i)
     else
     {
         // found
-        broadcast(user_info_arr, RD_USER_PIPE_BR, id, "");
+        broadcast(user_info_arr, RD_USER_PIPE_BR, id, source_info);
         return 1;
     }
 }
@@ -879,8 +891,8 @@ void exe_rd_user_pipe(int stdout_copy, vector<user_info> &user_info_arr, int id,
 {
     user_info *current_user = &(user_info_arr[id]);
     user_info *source_user = NULL;
-    int current_id = current_user->id_num;
-    int source_id = current_user->cmds[i].pipe_num;
+    size_t current_id = current_user->id_num;
+    size_t source_id = current_user->cmds[i].pipe_num;
     for (vector<user_info>::iterator it = user_info_arr.begin(); it != user_info_arr.end(); it++)
     {
         if (source_id == (*it).id_num)
