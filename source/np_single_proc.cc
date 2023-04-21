@@ -7,6 +7,7 @@ inline void print_login_msg();
 inline void print_lost_cnt_msg();
 inline void init_fd_set();
 size_t give_available_id(std::vector<user_info> user_info_arr);
+inline void show_user_input(std ::string input, const std::vector<user_info> user_info_arr, size_t id);
 
 int main(int argc, char *const argv[])
 {
@@ -19,7 +20,7 @@ int main(int argc, char *const argv[])
     int socket_fd = 0;
     int new_con_fd = 0;
 
-    int next_available_fd = 0;
+    int good_fd_num = 0;
 
     fd_set all_fds;
     FD_ZERO(&all_fds);
@@ -27,20 +28,38 @@ int main(int argc, char *const argv[])
     init_server(server_port, socket_fd, server_info);
     init_client(new_con_info);
     FD_SET(socket_fd, &all_fds);
-
+    FD_SET(STDIN_FILENO, &all_fds);
+    init_env(); // set all env to bin:.
     while (true)
     {
         fd_set temp_fds;
         FD_ZERO(&temp_fds);
         temp_fds = all_fds;
+        // after select, temp_fds includes all ready fd from all_fds
         if (user_info_arr.empty())
-            next_available_fd = select(socket_fd + 1, &temp_fds, NULL, NULL, NULL);
+            good_fd_num = select(socket_fd + 1, &temp_fds, NULL, NULL, NULL);
         else
-            next_available_fd = select(user_info_arr.back().fd + 1, &temp_fds, NULL, NULL, NULL);
-        if (next_available_fd == -1)
+            good_fd_num = select(user_info_arr.back().fd + 1, &temp_fds, NULL, NULL, NULL);
+        if (good_fd_num == -1)
         {
             std::cerr << "fail to selct\n";
             exit(EXIT_FAILURE);
+        }
+        if (FD_ISSET(STDIN_FILENO, &temp_fds))
+        {
+            char buffer[15001] = {0};
+            ssize_t read_len = read(STDIN_FILENO, buffer, sizeof(buffer));
+            std::string temp(buffer);
+            if (read_len == -1)
+            {
+                std::cerr << "client fd read error\n";
+                exit(EXIT_FAILURE);
+            }
+            else if (temp.find("exit") != std::string::npos)
+            {
+                close(socket_fd);
+                exit(EXIT_SUCCESS);
+            }
         }
         if (FD_ISSET(socket_fd, &temp_fds))
         {
@@ -55,10 +74,9 @@ int main(int argc, char *const argv[])
             user_info temp(new_con_info, new_con_fd, give_available_id(user_info_arr));
             user_info_arr.push_back(temp);
             broadcast(user_info_arr, LOG_IN, user_info_arr.size() - 1, "");
-            if (next_available_fd - 1 == 0) // only socket fd works, back to select and wait for new connection
+            if (good_fd_num == 1) // only socket fd works, back to select and wait for new connection
                 continue;
         }
-
         // poll
         for (size_t i = 0; i < user_info_arr.size(); i++)
         {
@@ -81,15 +99,22 @@ int main(int argc, char *const argv[])
                 }
                 else
                 {
+                    // init_user_env();
+                    std::map<std::string, std::string>::iterator it;
+                    for (it = user_info_arr[i].env_var.begin(); it != user_info_arr[i].env_var.end(); it++)
+                    {
+                        // std::cout << i << it->first << " " << it->second << std::endl;
+                        setenv(it->first.c_str(), it->second.c_str(), true);
+                    }
                     int stdout_copy = dup(STDOUT_FILENO);
                     int stderr_copy = dup(STDERR_FILENO);
+                    std::string input(buffer);
+                    show_user_input(input, user_info_arr, i);
                     dup2(user_info_arr[i].fd, STDOUT_FILENO);
                     dup2(user_info_arr[i].fd, STDERR_FILENO);
-                    std::string input(buffer);
-                    // std::cout << input << std::flush;
                     parser(input, user_info_arr, i);
                     if (!user_info_arr[i].is_closed)
-                        std::cout << "%" << std::flush;
+                        std::cout << "% " << std::flush;
                     dup2(stdout_copy, STDOUT_FILENO);
                     dup2(stderr_copy, STDERR_FILENO);
                     close(stdout_copy);
@@ -114,7 +139,6 @@ int main(int argc, char *const argv[])
                 { return p.is_closed; }),
             user_info_arr.end());
     }
-    close(socket_fd);
     return 0;
 }
 
@@ -150,7 +174,8 @@ inline void init_server(const int server_port, int &socket_fd, sockaddr_in &serv
         std::cerr << "fail to create socket\n";
         exit(EXIT_FAILURE);
     }
-    setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, (struct sockaddr *)&server_info, sizeof(server_info));
+    int one = 1;
+    setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
     bzero(&server_info, sizeof(server_info));  // init server to 0
     server_info.sin_family = PF_INET;          // ipv4
     server_info.sin_addr.s_addr = INADDR_ANY;  // allow all ip to connect
@@ -165,6 +190,7 @@ inline void init_server(const int server_port, int &socket_fd, sockaddr_in &serv
         std::cerr << "Fail to listen\n";
         exit(EXIT_FAILURE);
     }
+    std::cout << "server listen on port:" << server_port << std::endl;
 }
 
 inline void init_client(sockaddr_in &client_info)
@@ -206,4 +232,9 @@ size_t give_available_id(std::vector<user_info> user_info_arr)
             return i;
     }
     return 0;
+}
+
+inline void show_user_input(std ::string input, const std::vector<user_info> user_info_arr, size_t id)
+{
+    std::cout << user_info_arr[id].id_num << " " << user_info_arr[id].name << " send " << input << std::endl;
 }
