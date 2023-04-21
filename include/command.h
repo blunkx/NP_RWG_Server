@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 #include <map>
@@ -65,13 +66,16 @@ public:
         sock_addr_info = input_info;
         fd = input_fd;
         id_num = input_id;
+        env_var["PATH"] = "bin:.";
     }
-    int id_num = -1;
+    size_t id_num = 0;
+    std::string name = "(no name)";
     sockaddr_in sock_addr_info;
     int fd = -1;
-    std::string name = "no name";
-    std::vector<command> cmds;
     bool is_closed = false;
+    std::map<std::string, std::string> env_var;
+    std::string recv_input;
+    std::vector<command> cmds;
     std::map<size_t, int *> user_pipe;
 };
 
