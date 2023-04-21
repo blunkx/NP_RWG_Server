@@ -80,6 +80,8 @@ inline void init_server(const int server_port, int &socket_fd, sockaddr_in &serv
         std::cerr << "fail to create socket\n";
         exit(EXIT_FAILURE);
     }
+    int one = 1;
+    setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
     bzero(&server_info, sizeof(server_info));  // init server to 0
     server_info.sin_family = PF_INET;          // ipv4
     server_info.sin_addr.s_addr = INADDR_ANY;  // allow all ip to connect
