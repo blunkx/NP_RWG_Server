@@ -122,7 +122,6 @@ int main(int argc, char *const argv[])
                     std::cout << std::flush;
                     if (user_info_arr[i].is_closed)
                     {
-                        broadcast(user_info_arr, LOG_OUT, i, "");
                         shutdown(user_info_arr[i].fd, SHUT_RDWR);
                         FD_CLR(user_info_arr[i].fd, &all_fds);
                         print_lost_cnt_msg();
