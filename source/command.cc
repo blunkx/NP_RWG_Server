@@ -44,6 +44,15 @@ void exe_bin(vector<user_info> &user_info_arr, size_t id)
         if (!current_user->cmds[i].is_exe)
         {
             init_pipe(current_user->cmds[i].fd);
+        }
+    }
+    pid_t pre_pid;
+    for (size_t i = 0; i < current_user->cmds.size(); i++)
+    {
+        // cout << i << " ";
+        // print_cmds(current_user->cmds);
+        if (!current_user->cmds[i].is_exe)
+        {
             collect_num_pipe_output(current_user->cmds, temp_fd_arr, temp_id, i);
             switch (current_user->cmds[i].pipe_type)
             {
@@ -56,6 +65,7 @@ void exe_bin(vector<user_info> &user_info_arr, size_t id)
                 {
                     current_user->cmds[i].is_exe = true;
                     current_user->cmds[i].is_piped = true;
+                    waitpid(pre_pid, &status, 0);
                     continue;
                 }
                 break;
@@ -64,13 +74,13 @@ void exe_bin(vector<user_info> &user_info_arr, size_t id)
                 {
                     current_user->cmds[i].is_exe = true;
                     current_user->cmds[i].is_piped = true;
+                    waitpid(pre_pid, &status, 0);
                     continue;
                 }
                 break;
             default:
                 break;
             }
-
             pid_t pid;
             pid = fork();
             if (pid == -1)
@@ -137,6 +147,7 @@ void exe_bin(vector<user_info> &user_info_arr, size_t id)
                     close_wr_user_pipe(user_info_arr, id, i);
                 if (current_user->cmds[i].pipe_type == READ_USER_PIPE)
                     close_rd_user_pipe(user_info_arr, id, i);
+                pre_pid = pid;
             }
         }
     }
@@ -317,7 +328,7 @@ void tell_to_other(const vector<user_info> &user_info_arr, const size_t sender_i
         {
             int stdout_copy = dup(STDOUT_FILENO);
             dup2(user_info_arr[i].fd, STDOUT_FILENO);
-            cout << "*** User " << user_info_arr[sender_id].name << " told you ***: " << msg << endl;
+            cout << "*** " << user_info_arr[sender_id].name << " told you ***:" << msg << endl;
             dup2(stdout_copy, STDOUT_FILENO);
             close(stdout_copy);
             return;
@@ -368,8 +379,7 @@ void broadcast(const vector<user_info> &user_info_arr, BROADCAST_TYPE_E br_type,
                 cout << "% " << flush;
             break;
         case LOG_OUT:
-            cout << "\n*** User \'<" << user_info_arr[self_id].name << ">\' left. ***" << endl;
-            cout << "% " << flush;
+            cout << "*** User \'" << user_info_arr[self_id].name << "\' left. ***" << endl;
             break;
         case WR_USER_PIPE_BR:
             cout << "*** "
@@ -388,46 +398,33 @@ void broadcast(const vector<user_info> &user_info_arr, BROADCAST_TYPE_E br_type,
                  << user_info_arr[self_id].recv_input << "\' ***" << endl;
             break;
         case YELL_BR:
-            if (i != self_id)
-            {
-                cout << "\n"
-                     << "*** " << user_info_arr[self_id].name
-                     << " yelled ***: "
-                     << msg << "\n% " << flush;
-            }
-            else
-            {
-                cout << "*** " << user_info_arr[self_id].name
-                     << " yelled ***: ";
-                cout << msg << endl;
-            }
+            cout << "*** " << user_info_arr[self_id].name << " yelled ***:" << msg << endl;
             break;
         case CHANGE_NAME:
-            if (i != self_id)
-            {
-                cout << "\n*** User from "
-                     << inet_ntoa(user_info_arr[self_id].sock_addr_info.sin_addr)
-                     << ":" << ntohs(user_info_arr[self_id].sock_addr_info.sin_port)
-                     << " is named \'"
-                     << user_info_arr[self_id].name
-                     << "\'. ***" << endl;
-                cout << "% " << flush;
-            }
-            else
-            {
-                cout << "*** User from "
-                     << inet_ntoa(user_info_arr[self_id].sock_addr_info.sin_addr)
-                     << ":" << ntohs(user_info_arr[self_id].sock_addr_info.sin_port)
-                     << " is named \'"
-                     << user_info_arr[self_id].name
-                     << "\'. ***" << endl;
-            }
+            cout << "*** User from "
+                 << inet_ntoa(user_info_arr[self_id].sock_addr_info.sin_addr)
+                 << ":" << ntohs(user_info_arr[self_id].sock_addr_info.sin_port)
+                 << " is named \'"
+                 << user_info_arr[self_id].name
+                 << "\'. ***" << endl;
             break;
         default:
             break;
         }
         dup2(stdout_copy, STDOUT_FILENO);
         close(stdout_copy);
+    }
+}
+
+void clean_user_pipe(std::vector<user_info> &user_info_arr, size_t log_out_id)
+{
+    size_t out_id_num = user_info_arr[log_out_id].id_num;
+    for (size_t i = 0; i < user_info_arr.size(); i++)
+    {
+        if (user_info_arr[i].user_pipe.find(out_id_num) != user_info_arr[i].user_pipe.end())
+        {
+            user_info_arr[i].user_pipe.erase(out_id_num);
+        }
     }
 }
 
@@ -623,7 +620,7 @@ inline int init_wr_user_pp(vector<user_info> &user_info_arr, int id, int cmd_i)
     }
     if (!is_user_existed)
     {
-        cout << "*** Error: user #<" << recv_id << "> does not exist yet. ***" << endl;
+        cout << "*** Error: user #" << recv_id << " does not exist yet. ***" << endl;
         return -1;
     }
     if (current_user->user_pipe.find(recv_id) == current_user->user_pipe.end())
@@ -638,7 +635,7 @@ inline int init_wr_user_pp(vector<user_info> &user_info_arr, int id, int cmd_i)
     else
     {
         // found
-        cout << "***Error : the pipe #" << current_user->id_num << "->#" << recv_id << " already exists.***" << endl;
+        cout << "*** Error: the pipe #" << current_user->id_num << "->#" << recv_id << " already exists. ***" << endl;
         return -1;
     }
 }
@@ -665,13 +662,13 @@ inline int init_rd_user_pp(vector<user_info> &user_info_arr, int id, int cmd_i)
     }
     if (!is_user_existed)
     {
-        cout << "*** Error: user #<" << source_id << "> does not exist yet. ***" << endl;
+        cout << "*** Error: user #" << source_id << " does not exist yet. ***" << endl;
         return -1;
     }
     if (source_user->user_pipe.find(current_id) == source_user->user_pipe.end())
     {
         // not found
-        cout << "*** Error : the pipe #" << source_id << "->#" << current_user->id_num << " does not exist yet. ***" << endl;
+        cout << "*** Error: the pipe #" << source_id << "->#" << current_user->id_num << " does not exist yet. ***" << endl;
         return -1;
     }
     else
