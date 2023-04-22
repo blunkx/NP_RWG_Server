@@ -84,7 +84,8 @@ void print_env(const char *const para);
 void print_users(std::vector<user_info> user_info_arr, const size_t id);
 void tell_to_other(const std::vector<user_info> &user_info_arr, const size_t sender_id, const size_t recv_id, std::string msg);
 void change_name(std::vector<user_info> &user_info_arr, const size_t id, std::string input_name);
-void broadcast(const std::vector<user_info> &user_info_arr, BROADCAST_TYPE_E br_type, size_t log_out_id, std::string msg);
+void broadcast(const std::vector<user_info> &user_info_arr, BROADCAST_TYPE_E br_type, size_t self_id, std::string msg);
+void clean_user_pipe(std::vector<user_info> &user_info_arr, size_t log_out_id);
 
 void exe_bin(std::vector<command> &cmds);
 void exe_bin(std::vector<user_info> &user_info_arr, size_t id);
