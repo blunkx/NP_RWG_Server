@@ -206,6 +206,8 @@ void parser(string &input, vector<user_info> &user_info_arr, size_t id)
         break;
     case EXIT:
         user_info_arr[id].is_closed = true;
+        clean_user_pipe(user_info_arr, id); // remove all user pipe for log out user
+        broadcast(user_info_arr, LOG_OUT, id, "");
         break;
     case WHO:
         print_users(user_info_arr, id);
