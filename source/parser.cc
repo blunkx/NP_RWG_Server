@@ -31,6 +31,28 @@ BUILT_IN_COM_E is_built_in_command(const vector<string> tokens)
         return NOT_BUILT_IN;
 }
 
+void parse_user_pipe(command &cmd)
+{
+    vector<size_t> removed_id;
+    for (size_t i = 0; i < cmd.cmd.size(); i++)
+    {
+        if (std::regex_match((cmd.cmd[i]), std::regex("\\>\\d+")))
+        {
+            removed_id.push_back(i);
+            cmd.write_to = stoi((cmd.cmd[i]).erase(0, 1));
+        }
+        else if (std::regex_match((cmd.cmd[i]), std::regex("\\<\\d+")))
+        {
+            removed_id.push_back(i);
+            cmd.read_from = stoi((cmd.cmd[i]).erase(0, 1));
+        }
+    }
+    for (size_t i = 0; i < removed_id.size(); i++)
+    {
+        cmd.cmd.erase(next(cmd.cmd.begin(), removed_id[i]));
+    }
+}
+
 void split_by_pipe(vector<string> &tokens, vector<command> &cmds)
 {
     vector<string>::iterator pre_end = tokens.begin();
@@ -42,6 +64,7 @@ void split_by_pipe(vector<string> &tokens, vector<command> &cmds)
             temp.pipe_type = PIPE;
             vector<string> temp_cmd(pre_end, it);
             temp.cmd = temp_cmd;
+            parse_user_pipe(temp);
             cmds.push_back(temp);
             pre_end = it + 1;
         }
@@ -50,6 +73,7 @@ void split_by_pipe(vector<string> &tokens, vector<command> &cmds)
             temp.pipe_type = ERR_PIPE;
             vector<string> temp_cmd(pre_end, it);
             temp.cmd = temp_cmd;
+            parse_user_pipe(temp);
             cmds.push_back(temp);
             pre_end = it + 1;
         }
@@ -74,6 +98,7 @@ void split_by_pipe(vector<string> &tokens, vector<command> &cmds)
             vector<string> temp_cmd(pre_end, it);
             temp.cmd = temp_cmd;
             temp.pipe_num = stoi((*it).erase(0, 1));
+            parse_user_pipe(temp);
             cmds.push_back(temp);
             pre_end = it + 1;
         }
@@ -83,24 +108,7 @@ void split_by_pipe(vector<string> &tokens, vector<command> &cmds)
             vector<string> temp_cmd(pre_end, it);
             temp.cmd = temp_cmd;
             temp.pipe_num = stoi((*it).erase(0, 1));
-            cmds.push_back(temp);
-            pre_end = it + 1;
-        }
-        else if (std::regex_match((*it), std::regex("\\>\\d+")))
-        {
-            temp.pipe_type = WRITE_USER_PIPE;
-            vector<string> temp_cmd(pre_end, it);
-            temp.cmd = temp_cmd;
-            temp.pipe_num = stoi((*it).erase(0, 1));
-            cmds.push_back(temp);
-            pre_end = it + 1;
-        }
-        else if (std::regex_match((*it), std::regex("\\<\\d+")))
-        {
-            temp.pipe_type = READ_USER_PIPE;
-            vector<string> temp_cmd(pre_end, it);
-            temp.cmd = temp_cmd;
-            temp.pipe_num = stoi((*it).erase(0, 1));
+            parse_user_pipe(temp);
             cmds.push_back(temp);
             pre_end = it + 1;
         }
@@ -109,17 +117,10 @@ void split_by_pipe(vector<string> &tokens, vector<command> &cmds)
             temp.pipe_type = NO_PIPE;
             vector<string> temp_cmd(pre_end, tokens.end());
             temp.cmd = temp_cmd;
+            parse_user_pipe(temp);
             cmds.push_back(temp);
         }
     }
-    // for (size_t i = 0; i < cmds.size(); i++)
-    // {
-    //     if (cmds[i].cmd.empty())
-    //     {
-    //         vector<string> c{"cat"};
-    //         cmds[i].cmd = c;
-    //     }
-    // }
 }
 
 void print_str_ascii(const std::string &input)
