@@ -30,8 +30,6 @@ typedef enum PIPE_TYPE_T
     F_RED_PIPE,
     NUM_PIPE,
     ERR_NUM_PIPE,
-    WRITE_USER_PIPE,
-    READ_USER_PIPE
 } PIPE_TYPE_E;
 
 typedef enum BROADCAST_TYPE_T
@@ -49,6 +47,8 @@ class command
 private:
 public:
     PIPE_TYPE_E pipe_type;
+    int read_from = -1;
+    int write_to = -1;
     int pipe_num = 0;
     bool is_exe = false;
     bool is_piped = false;
