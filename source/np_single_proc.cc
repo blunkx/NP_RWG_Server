@@ -52,7 +52,7 @@ int main(int argc, char *const argv[])
             std::string temp(buffer);
             if (read_len == -1)
             {
-                std::cerr << "client fd read error\n";
+                std::cerr << "stdin read error\n";
                 exit(EXIT_FAILURE);
             }
             else if (temp.find("exit") != std::string::npos)
@@ -103,7 +103,6 @@ int main(int argc, char *const argv[])
                     std::map<std::string, std::string>::iterator it;
                     for (it = user_info_arr[i].env_var.begin(); it != user_info_arr[i].env_var.end(); it++)
                     {
-                        // std::cout << i << it->first << " " << it->second << std::endl;
                         setenv(it->first.c_str(), it->second.c_str(), true);
                     }
                     int stdout_copy = dup(STDOUT_FILENO);
