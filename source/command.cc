@@ -12,8 +12,10 @@ inline void close_temp_pipe(vector<int *> &temp_fd_arr);
 inline void close_wr_user_pipe(vector<user_info> &user_info_arr, int id, int i);
 inline void close_rd_user_pipe(vector<user_info> &user_info_arr, int id, int i);
 inline void reduce_num_by_nl(vector<command> &cmds);
-inline int init_wr_user_pp(vector<user_info> &user_info_arr, int id, int cmd_i);
 inline int init_rd_user_pp(vector<user_info> &user_info_arr, int id, int cmd_i);
+inline int init_wr_user_pp(vector<user_info> &user_info_arr, int id, int cmd_i);
+inline bool is_rd_user_pp_exist(command cmd);
+inline bool is_wr_user_pp_exist(command cmd);
 
 char **vector_to_c_str_arr(vector<string> cmd);
 void exe_command(int stdout_copy, vector<user_info> &user_info_arr, int id, int i, bool stop_pipe, int temp_fd[]);
@@ -53,7 +55,8 @@ void exe_bin(vector<user_info> &user_info_arr, size_t id)
             if (current_user->cmds[i].pipe_type == NUM_PIPE ||
                 current_user->cmds[i].pipe_type == ERR_NUM_PIPE)
                 reduce_num_pipes(current_user->cmds, i);
-            if (current_user->cmds[i].read_from != -1)
+            // if (current_user->cmds[i].read_from != -1)
+            if (is_rd_user_pp_exist(current_user->cmds[i]))
             {
                 if (init_rd_user_pp(user_info_arr, id, i) == -1)
                 {
@@ -63,7 +66,7 @@ void exe_bin(vector<user_info> &user_info_arr, size_t id)
                     continue;
                 }
             }
-            if (current_user->cmds[i].write_to != -1)
+            if (is_wr_user_pp_exist(current_user->cmds[i]))
             {
                 if (init_wr_user_pp(user_info_arr, id, i) == -1)
                 {
@@ -552,6 +555,45 @@ inline void reduce_num_by_nl(vector<command> &cmds)
     }
 }
 
+inline int init_rd_user_pp(vector<user_info> &user_info_arr, int id, int cmd_i)
+{
+    user_info *current_user = &(user_info_arr[id]);
+    user_info *source_user;
+    size_t current_id = current_user->id_num;
+    size_t source_id = current_user->cmds[cmd_i].read_from;
+    bool is_user_existed = false;
+    stringstream ss;
+    string source_info;
+    for (vector<user_info>::iterator it = user_info_arr.begin(); it != user_info_arr.end(); it++)
+    {
+        if (source_id == (*it).id_num)
+        {
+            ss << it->name << " (#" << it->id_num << ")";
+            getline(ss, source_info);
+            is_user_existed = true;
+            source_user = &(*it);
+            break;
+        }
+    }
+    if (!is_user_existed)
+    {
+        cout << "*** Error: user #" << source_id << " does not exist yet. ***" << endl;
+        return -1;
+    }
+    if (source_user->user_pipe.find(current_id) == source_user->user_pipe.end())
+    {
+        // not found
+        cout << "*** Error: the pipe #" << source_id << "->#" << current_user->id_num << " does not exist yet. ***" << endl;
+        return -1;
+    }
+    else
+    {
+        // found
+        broadcast(user_info_arr, RD_USER_PIPE_BR, id, source_info);
+        return 1;
+    }
+}
+
 inline int init_wr_user_pp(vector<user_info> &user_info_arr, int id, int cmd_i)
 {
     user_info *current_user = &(user_info_arr[id]);
@@ -591,43 +633,14 @@ inline int init_wr_user_pp(vector<user_info> &user_info_arr, int id, int cmd_i)
     }
 }
 
-inline int init_rd_user_pp(vector<user_info> &user_info_arr, int id, int cmd_i)
+inline bool is_rd_user_pp_exist(command cmd)
 {
-    user_info *current_user = &(user_info_arr[id]);
-    user_info *source_user;
-    size_t current_id = current_user->id_num;
-    size_t source_id = current_user->cmds[cmd_i].read_from;
-    bool is_user_existed = false;
-    stringstream ss;
-    string source_info;
-    for (vector<user_info>::iterator it = user_info_arr.begin(); it != user_info_arr.end(); it++)
-    {
-        if (source_id == (*it).id_num)
-        {
-            ss << it->name << " (#" << it->id_num << ")";
-            getline(ss, source_info);
-            is_user_existed = true;
-            source_user = &(*it);
-            break;
-        }
-    }
-    if (!is_user_existed)
-    {
-        cout << "*** Error: user #" << source_id << " does not exist yet. ***" << endl;
-        return -1;
-    }
-    if (source_user->user_pipe.find(current_id) == source_user->user_pipe.end())
-    {
-        // not found
-        cout << "*** Error: the pipe #" << source_id << "->#" << current_user->id_num << " does not exist yet. ***" << endl;
-        return -1;
-    }
-    else
-    {
-        // found
-        broadcast(user_info_arr, RD_USER_PIPE_BR, id, source_info);
-        return 1;
-    }
+    return cmd.read_from != -1;
+}
+
+inline bool is_wr_user_pp_exist(command cmd)
+{
+    return cmd.write_to != -1;
 }
 
 char **vector_to_c_str_arr(vector<string> cmd)
