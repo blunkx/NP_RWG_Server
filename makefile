@@ -23,7 +23,7 @@ ${TARGET2}:$(filter-out ${DIR_OBJ}/$(TARGET).o ${DIR_OBJ}/$(TARGET3).o, $(OBJ))
 	$(CC) -o $@ $^
 
 ${TARGET3}:$(filter-out ${DIR_OBJ}/$(TARGET).o ${DIR_OBJ}/$(TARGET2).o, $(OBJ))
-	$(CC) -o $@ $^
+	$(CC) -o $@ $^ -lrt
 
 $(DIR_OBJ)/%.o: ${DIR_SRC}/%.cc ${DIR_INC}/%.h 
 	mkdir -p $(DIR_OBJ)
