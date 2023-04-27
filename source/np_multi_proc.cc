@@ -4,9 +4,10 @@ inline void check_arg(int argc, char *const argv[], int &server_port);
 inline void init_server(const int server_port, int &socket_fd, sockaddr_in &server_info);
 inline void init_client(sockaddr_in &client_info);
 inline void print_login_msg();
+inline void print_login_msg_to_client(int socket_fd, const user_info_shm_ver login_cli);
 inline void print_lost_cnt_msg();
-inline void init_fd_set();
-size_t give_available_id(std::vector<user_info> user_info_arr);
+inline void init_user_info(user_info_shm_ver *user_info_arr);
+size_t give_available_id(user_info_shm_ver *user_info_arr);
 inline void show_user_input(std ::string input, const std::vector<user_info> user_info_arr, size_t id);
 
 int main(int argc, char *const argv[])
@@ -16,12 +17,24 @@ int main(int argc, char *const argv[])
 
     sockaddr_in server_info, new_con_info;
     socklen_t new_con_sock_len = sizeof(new_con_info);
-    std::vector<user_info> user_info_arr;
     int socket_fd = 0;
     int new_con_fd = 0;
     init_server(server_port, socket_fd, server_info);
     init_client(new_con_info);
     init_env(); // set all env to bin:.
+
+    user_info_shm_ver user_info_arr[30];
+    int shm_fd = shm_open("user_info_shm", O_CREAT | O_RDWR, 0666);
+    if (shm_fd == -1)
+    {
+        std::cerr << "shared memory error\n";
+    }
+    ftruncate(shm_fd, sizeof(user_info_arr));
+    user_info_shm_ver *shm_user_info_arr = (user_info_shm_ver *)mmap(NULL, sizeof(user_info_arr), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    memcpy(shm_user_info_arr, &user_info_arr, sizeof(user_info_arr));
+    init_user_info(shm_user_info_arr);
+
+    size_t id = 0;
     while (true)
     {
         new_con_fd = accept(socket_fd, (struct sockaddr *)&new_con_info, &new_con_sock_len);
@@ -30,7 +43,16 @@ int main(int argc, char *const argv[])
             std::cerr << "New connect fd error\n";
             exit(EXIT_FAILURE);
         }
-        print_login_msg();
+        else
+        {
+            id = give_available_id(shm_user_info_arr);
+            print_login_msg();
+            shm_user_info_arr[id].id_num = id + 1;
+            shm_user_info_arr[id].fd = new_con_fd;
+            shm_user_info_arr[id].sock_addr_info = new_con_info;
+            print_login_msg_to_client(new_con_fd, shm_user_info_arr[id]);
+            broadcast(shm_user_info_arr, LOG_IN, id, "");
+        }
         pid_t pid = fork();
         if (pid == -1)
         {
@@ -39,19 +61,16 @@ int main(int argc, char *const argv[])
         }
         else if (pid == 0)
         {
+            close(socket_fd);
             dup2(new_con_fd, STDIN_FILENO);
             dup2(new_con_fd, STDOUT_FILENO);
             dup2(new_con_fd, STDERR_FILENO);
-            exe_shell();
-            print_lost_cnt_msg();
+            exe_shell(shm_user_info_arr, id);
         }
         else
         {
             close(new_con_fd);
         }
-        // user_info temp(new_con_info, new_con_fd, give_available_id(user_info_arr));
-        // user_info_arr.push_back(temp);
-        // broadcast(user_info_arr, LOG_IN, user_info_arr.size() - 1, "");
     }
     return 0;
 }
@@ -112,6 +131,21 @@ inline void init_client(sockaddr_in &client_info)
     bzero(&client_info, sizeof(client_info));
 }
 
+inline void print_login_msg_to_client(int socket_fd, const user_info_shm_ver login_cli)
+{
+    int stdout_copy = dup(STDOUT_FILENO);
+    dup2(socket_fd, STDOUT_FILENO);
+    std::cout << "****************************************\n"
+              << "** Welcome to the information server. **\n"
+              << "****************************************" << std::endl;
+    std::cout << "*** User \'"
+              << login_cli.name << "\' entered from "
+              << inet_ntoa(login_cli.sock_addr_info.sin_addr) << ":"
+              << ntohs(login_cli.sock_addr_info.sin_port) << ". ***" << std::endl;
+    dup2(stdout_copy, STDOUT_FILENO);
+    close(stdout_copy);
+}
+
 inline void print_login_msg()
 {
     std::cout
@@ -125,24 +159,19 @@ inline void print_lost_cnt_msg()
     std::cout << "|-------------------User lost connection------------------|\n\n";
 }
 
-size_t give_available_id(std::vector<user_info> user_info_arr)
+inline void init_user_info(user_info_shm_ver *user_info_arr)
 {
-    if (user_info_arr.empty())
+    for (size_t i = 0; i < 30; i++)
     {
-        return 1;
+        strcpy(user_info_arr[i].name, "(no name)");
     }
-    for (size_t i = 1; i <= 30; i++)
+}
+
+size_t give_available_id(user_info_shm_ver *user_info_arr)
+{
+    for (size_t i = 0; i < 30; i++)
     {
-        bool is_id_existed = false;
-        for (size_t j = 0; j < user_info_arr.size(); j++)
-        {
-            if (i == user_info_arr[j].id_num)
-            {
-                is_id_existed = true;
-                break;
-            }
-        }
-        if (!is_id_existed)
+        if (user_info_arr[i].id_num == 0)
             return i;
     }
     return 0;
