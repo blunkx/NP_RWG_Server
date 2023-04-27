@@ -9,7 +9,6 @@ void print_str_ascii(const std::string &input);
 string handle_tell_msg(string input);
 string handle_yell_msg(string input);
 
-// for single user
 void parser(string &input, vector<command> &cmds)
 {
     input.erase(std::remove(input.begin(), input.end(), '\r'), input.end());
@@ -38,7 +37,6 @@ void parser(string &input, vector<command> &cmds)
     }
 }
 
-// for select
 void parser(string &input, vector<user_info> &user_info_arr, size_t id)
 {
     input.erase(std::remove(input.begin(), input.end(), '\r'), input.end());
@@ -65,6 +63,52 @@ void parser(string &input, vector<user_info> &user_info_arr, size_t id)
         user_info_arr[id].is_closed = true;
         clean_user_pipe(user_info_arr, id); // remove all user pipe for log out user
         broadcast(user_info_arr, LOG_OUT, id, "");
+        break;
+    case WHO:
+        print_users(user_info_arr, id);
+        break;
+    case TELL:
+        tell_to_other(user_info_arr, id, stoi(tokens[1]), handle_tell_msg(input));
+        break;
+    case YELL:
+        broadcast(user_info_arr, YELL_BR, id, handle_yell_msg(input));
+        break;
+    case NAME:
+        change_name(user_info_arr, id, tokens[1]);
+        break;
+    default:
+        exit(EXIT_FAILURE);
+    }
+}
+
+void parser(string &input, vector<command> &cmds, user_info_shm_ver *user_info_arr, size_t id)
+{
+    input.erase(std::remove(input.begin(), input.end(), '\r'), input.end());
+    input.erase(std::remove(input.begin(), input.end(), '\n'), input.end());
+    if (input.empty())
+        return;
+    vector<string> tokens;
+    istringstream iss(input);
+    copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter(tokens));
+    strcpy(user_info_arr[id].recv_input, input.c_str());
+    switch (is_built_in_command(tokens))
+    {
+    case NOT_BUILT_IN:
+        split_by_pipe(tokens, cmds);
+        exe_bin(cmds);
+        break;
+    case SETENV:
+        setenv(tokens[1].c_str(), tokens[2].c_str(), true);
+        break;
+    case PRINTENV:
+        print_env(tokens[1].c_str());
+        break;
+    case EXIT:
+        user_info_arr[id].id_num = 0;
+        broadcast(user_info_arr, LOG_OUT, id, "");
+        reset_logout_user(user_info_arr, id);
+        close(user_info_arr[id].fd);
+        exit(EXIT_SUCCESS);
         break;
     case WHO:
         print_users(user_info_arr, id);
