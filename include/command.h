@@ -76,8 +76,25 @@ public:
     std::map<std::string, std::string> env_var;
     std::string recv_input;
     std::vector<command> cmds;
-    std::map<size_t, int *> user_pipe;
+    std::map<size_t, int *> user_pipe; // key:recv_id value:fd
 };
+
+typedef struct
+{
+    size_t send_to_id;
+    char value[100] = {0};
+} user_pipe_shm_ver;
+
+typedef struct
+{
+    size_t id_num = 0;
+    char name[100] = {0};
+    sockaddr_in sock_addr_info;
+    int fd = -1;
+    char recv_input[1024] = {0};
+    user_pipe_shm_ver user_pipe;
+    char broadcast_msg[1024] = {0};
+} user_info_shm_ver;
 
 void init_env();
 void print_env(const char *const para);
@@ -86,6 +103,14 @@ void tell_to_other(const std::vector<user_info> &user_info_arr, const size_t sen
 void change_name(std::vector<user_info> &user_info_arr, const size_t id, std::string input_name);
 void broadcast(const std::vector<user_info> &user_info_arr, BROADCAST_TYPE_E br_type, size_t self_id, std::string msg);
 void clean_user_pipe(std::vector<user_info> &user_info_arr, size_t log_out_id);
+
+// for multi proc
+void print_users(const user_info_shm_ver *user_info_arr, size_t id);
+void tell_to_other(user_info_shm_ver *user_info_arr, const size_t sender_id, const size_t recv_id, std::string msg);
+void change_name(user_info_shm_ver *user_info_arr, const size_t id, std::string input_name);
+void broadcast(user_info_shm_ver *user_info_arr, BROADCAST_TYPE_E br_type, size_t self_id, std::string msg);
+void reset_logout_user(user_info_shm_ver *user_info_arr, size_t id);
+void clean_user_pipe(user_info_shm_ver *user_info_arr, size_t log_out_id);
 
 void exe_bin(std::vector<command> &cmds);
 void exe_bin(std::vector<user_info> &user_info_arr, size_t id);
