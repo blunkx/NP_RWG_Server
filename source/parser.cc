@@ -95,7 +95,7 @@ void parser(string &input, vector<command> &cmds, user_info_shm_ver *user_info_a
     {
     case NOT_BUILT_IN:
         split_by_pipe(tokens, cmds);
-        exe_bin(cmds);
+        exe_bin(cmds, user_info_arr, id);
         break;
     case SETENV:
         setenv(tokens[1].c_str(), tokens[2].c_str(), true);
@@ -104,6 +104,7 @@ void parser(string &input, vector<command> &cmds, user_info_shm_ver *user_info_a
         print_env(tokens[1].c_str());
         break;
     case EXIT:
+        clean_user_pipe(user_info_arr, id);
         user_info_arr[id].id_num = 0;
         broadcast(user_info_arr, LOG_OUT, id, "");
         reset_logout_user(user_info_arr, id);
