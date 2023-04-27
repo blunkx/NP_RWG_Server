@@ -41,6 +41,7 @@ void exe_shell(user_info_shm_ver *user_info_arr, size_t id)
         if (read_len > 0)
         {
             parser(input, cmds, user_info_arr, id);
+            usleep(1000);
             if (strlen(user_info_arr[id].broadcast_msg) != 0)
             {
                 std::cout << user_info_arr[id].broadcast_msg << std::flush;
@@ -48,5 +49,6 @@ void exe_shell(user_info_shm_ver *user_info_arr, size_t id)
             }
             std::cout << "% " << std::flush;
         }
+        usleep(1000);
     }
 }
