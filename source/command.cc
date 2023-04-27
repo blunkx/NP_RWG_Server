@@ -273,6 +273,24 @@ void print_users(vector<user_info> user_info_arr, const size_t id)
     }
 }
 
+void print_users(const user_info_shm_ver *user_info_arr, size_t id)
+{
+    cout << "<ID>\t<nickname>\t<IP:port>\t<indicate me>" << endl;
+    for (size_t i = 0; i < 30; i++)
+    {
+        if (user_info_arr[i].id_num != 0)
+        {
+            cout << user_info_arr[i].id_num << "\t"
+                 << user_info_arr[i].name << "\t"
+                 << inet_ntoa(user_info_arr[i].sock_addr_info.sin_addr)
+                 << ":" << ntohs(user_info_arr[i].sock_addr_info.sin_port);
+            if (user_info_arr[i].id_num == id + 1)
+                cout << "\t<-me";
+            cout << endl;
+        }
+    }
+}
+
 void tell_to_other(const vector<user_info> &user_info_arr, const size_t sender_id, const size_t recv_id, string msg)
 {
     for (size_t i = 0; i < user_info_arr.size(); i++)
@@ -286,6 +304,27 @@ void tell_to_other(const vector<user_info> &user_info_arr, const size_t sender_i
             dup2(stdout_copy, STDOUT_FILENO);
             close(stdout_copy);
             return;
+        }
+    }
+    cout << "*** Error: user #" << recv_id << " does not exist yet. ***" << endl;
+}
+
+void tell_to_other(user_info_shm_ver *user_info_arr, const size_t sender_id, const size_t recv_id, string msg)
+{
+    for (size_t i = 0; i < 30; i++)
+    {
+        if (user_info_arr[i].id_num != 0)
+        {
+            if (user_info_arr[i].id_num == recv_id)
+            {
+                stringstream ss;
+                string temp;
+                ss << "*** " << user_info_arr[sender_id].name << " told you ***:" << msg << endl;
+                getline(ss, temp);
+                temp += "\n";
+                strcpy(user_info_arr[i].broadcast_msg, temp.c_str());
+                return;
+            }
         }
     }
     cout << "*** Error: user #" << recv_id << " does not exist yet. ***" << endl;
@@ -305,6 +344,26 @@ void change_name(vector<user_info> &user_info_arr, const size_t id, string input
         }
     }
     user_info_arr[id].name = input_name;
+    broadcast(user_info_arr, CHANGE_NAME, id, "");
+}
+
+void change_name(user_info_shm_ver *user_info_arr, const size_t id, std::string input_name)
+{
+    for (size_t i = 0; i < 30; i++)
+    {
+        if (user_info_arr[i].id_num != 0)
+        {
+            if (i != id)
+            {
+                if (user_info_arr[i].name == input_name)
+                {
+                    cout << "*** User \'" << input_name << "\' already exists. ***" << endl;
+                    return;
+                }
+            }
+        }
+    }
+    strcpy(user_info_arr[id].name, input_name.c_str());
     broadcast(user_info_arr, CHANGE_NAME, id, "");
 }
 
@@ -370,6 +429,77 @@ void broadcast(const vector<user_info> &user_info_arr, BROADCAST_TYPE_E br_type,
     }
 }
 
+void broadcast(user_info_shm_ver *user_info_arr, BROADCAST_TYPE_E br_type, size_t self_id, std::string msg)
+{
+    for (size_t i = 0; i < 30; i++)
+    {
+        if (user_info_arr[i].id_num == 0)
+            continue;
+        stringstream ss;
+        string temp;
+        switch (br_type)
+        {
+        case LOG_IN:
+            if (i != self_id)
+            {
+                ss << "*** User \'"
+                   << user_info_arr[self_id].name << "\' entered from "
+                   << inet_ntoa(user_info_arr[self_id].sock_addr_info.sin_addr) << ":"
+                   << ntohs(user_info_arr[self_id].sock_addr_info.sin_port) << ". ***";
+            }
+            break;
+        case LOG_OUT:
+            if (i != self_id)
+            {
+                ss << "*** User \'" << user_info_arr[self_id].name << "\' left. ***" << endl;
+            }
+            break;
+        case WR_USER_PIPE_BR:
+            ss << "*** "
+               << user_info_arr[self_id].name << " (#"
+               << user_info_arr[self_id].id_num << ") just piped \'"
+               << user_info_arr[self_id].recv_input << "\' to "
+               << msg;
+            break;
+        case RD_USER_PIPE_BR:
+            ss << "*** "
+               << user_info_arr[self_id].name
+               << " (#"
+               << user_info_arr[self_id].id_num << ") just received from "
+               << msg << " by \'"
+               << user_info_arr[self_id].recv_input << "\' ***";
+            break;
+        case YELL_BR:
+            ss << "*** " << user_info_arr[self_id].name << " yelled ***:" << msg;
+            break;
+        case CHANGE_NAME:
+            ss << "*** User from "
+               << inet_ntoa(user_info_arr[self_id].sock_addr_info.sin_addr)
+               << ":" << ntohs(user_info_arr[self_id].sock_addr_info.sin_port)
+               << " is named \'"
+               << user_info_arr[self_id].name
+               << "\'. ***";
+            break;
+        default:
+            break;
+        }
+        getline(ss, temp);
+        if (!temp.empty())
+        {
+            temp += "\n";
+            strcpy(user_info_arr[i].broadcast_msg, temp.c_str());
+        }
+    }
+}
+
+void reset_logout_user(user_info_shm_ver *user_info_arr, size_t id)
+{
+    user_info_arr[id].id_num = 0;
+    strcpy(user_info_arr[id].name, "(no name)");
+    strcpy(user_info_arr[id].recv_input, "");
+    strcpy(user_info_arr[id].broadcast_msg, "");
+}
+
 void clean_user_pipe(std::vector<user_info> &user_info_arr, size_t log_out_id)
 {
     size_t out_id_num = user_info_arr[log_out_id].id_num;
@@ -380,6 +510,18 @@ void clean_user_pipe(std::vector<user_info> &user_info_arr, size_t log_out_id)
             user_info_arr[i].user_pipe.erase(out_id_num);
         }
     }
+}
+
+void clean_user_pipe(user_info_shm_ver *user_info_arr, size_t log_out_id)
+{
+    // size_t out_id_num = user_info_arr[log_out_id].id_num;
+    // for (size_t i = 0; i < user_info_arr.size(); i++)
+    // {
+    //     if (user_info_arr[i].user_pipe.find(out_id_num) != user_info_arr[i].user_pipe.end())
+    //     {
+    //         user_info_arr[i].user_pipe.erase(out_id_num);
+    //     }
+    // }
 }
 
 // functions for execute command
