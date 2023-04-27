@@ -81,8 +81,7 @@ public:
 
 typedef struct
 {
-    size_t send_to_id;
-    char value[100] = {0};
+    size_t send_to_id = 0;
 } user_pipe_shm_ver;
 
 typedef struct
@@ -92,7 +91,7 @@ typedef struct
     sockaddr_in sock_addr_info;
     int fd = -1;
     char recv_input[1024] = {0};
-    user_pipe_shm_ver user_pipe;
+    user_pipe_shm_ver user_pipe[30];
     char broadcast_msg[1024] = {0};
 } user_info_shm_ver;
 
@@ -114,6 +113,7 @@ void clean_user_pipe(user_info_shm_ver *user_info_arr, size_t log_out_id);
 
 void exe_bin(std::vector<command> &cmds);
 void exe_bin(std::vector<user_info> &user_info_arr, size_t id);
+void exe_bin(std::vector<command> &cmds, user_info_shm_ver *user_info_arr, size_t id);
 
 void print_cmds(std::vector<command> cmds);
 
