@@ -733,6 +733,7 @@ void collect_num_pipe_output(vector<command> &cmds, vector<int *> &temp_fd_arr, 
                     cmds[j].is_piped = true;
                     close(cmds[j].fd[0]);
                     close(cmds[j].fd[1]);
+                    usleep(1000);
                 }
             }
         }
