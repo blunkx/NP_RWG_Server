@@ -33,4 +33,4 @@ $(DIR_OBJ)/%.o: ${DIR_SRC}/%.cc ${DIR_INC}/%.h
 
 .PHONY:clean
 clean:
-	rm -rf ${DIR_OBJ} -f $(TARGET) $(TARGET2)
+	rm -rf ${DIR_OBJ} -f $(TARGET) $(TARGET2) $(TARGET3)
